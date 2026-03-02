@@ -1,8 +1,11 @@
-import SHEETDB_CONFIG from './sheetdb-config.js';
+// Make sure config is loaded first
+if (!window.SHEETDB_CONFIG) {
+    console.error('SheetDB configuration not found. Make sure sheetdb-config.js is loaded first.');
+}
 
 // API Helper Functions
 async function sheetdbRequest(endpoint = '', method = 'GET', data = null) {
-    const url = `${SHEETDB_CONFIG.API_URL}${endpoint}`;
+    const url = `${window.SHEETDB_CONFIG.API_URL}${endpoint}`;
     
     const options = {
         method: method,
@@ -18,6 +21,9 @@ async function sheetdbRequest(endpoint = '', method = 'GET', data = null) {
 
     try {
         const response = await fetch(url, options);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         return await response.json();
     } catch (error) {
         console.error('SheetDB API Error:', error);
@@ -40,14 +46,14 @@ function generateShortCode(length = 6) {
 async function aliasExists(alias) {
     try {
         const links = await sheetdbRequest(`/search?shortCode=${alias}`);
-        return links.length > 0;
+        return links && links.length > 0;
     } catch (error) {
         console.error('Error checking alias:', error);
         return false;
     }
 }
 
-// Shorten URL function
+// Shorten URL function - make it globally available
 window.shortenUrl = async function() {
     const longUrl = document.getElementById('longUrl').value;
     const customAlias = document.getElementById('customAlias').value;
@@ -62,9 +68,15 @@ window.shortenUrl = async function() {
     try {
         new URL(longUrl);
     } catch {
-        alert('Please enter a valid URL');
+        alert('Please enter a valid URL (include http:// or https://)');
         return;
     }
+
+    // Show loading state
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Shortening...';
+    button.disabled = true;
 
     try {
         let shortCode = customAlias;
@@ -74,13 +86,22 @@ window.shortenUrl = async function() {
             const exists = await aliasExists(customAlias);
             if (exists) {
                 alert('This custom alias is already taken. Please choose another.');
+                button.innerHTML = originalText;
+                button.disabled = false;
                 return;
             }
         } else {
             // Generate unique short code
-            do {
+            let exists = true;
+            let attempts = 0;
+            while (exists && attempts < 10) {
                 shortCode = generateShortCode();
-            } while (await aliasExists(shortCode));
+                exists = await aliasExists(shortCode);
+                attempts++;
+            }
+            if (exists) {
+                throw new Error('Could not generate unique short code');
+            }
         }
 
         const shortUrl = `https://koom.site/${shortCode}`;
@@ -109,9 +130,14 @@ window.shortenUrl = async function() {
         document.getElementById('customAlias').value = '';
         document.getElementById('linkPassword').value = '';
         
+        showNotification('Link created successfully!', 'success');
+        
     } catch (error) {
         console.error('Error shortening URL:', error);
         alert('Error creating short link. Please try again.');
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
     }
 };
 
@@ -121,7 +147,7 @@ function displayResult(shortUrl, shortCode) {
     resultDiv.innerHTML = `
         <div class="shortened-url">
             <a href="${shortUrl}" target="_blank">${shortUrl}</a>
-            <button onclick="copyToClipboard('${shortUrl}')">
+            <button onclick="copyToClipboard('${shortUrl}')" class="btn-copy">
                 <i class="fas fa-copy"></i> Copy
             </button>
             <button onclick="showQR('${shortUrl}')" class="btn-qr-small">
@@ -152,6 +178,10 @@ window.copyToClipboard = function(text) {
 
 // Show notification
 function showNotification(message, type = 'info') {
+    // Remove existing notifications
+    const existing = document.querySelector('.notification');
+    if (existing) existing.remove();
+
     const notification = document.createElement('div');
     notification.className = `notification ${type}`;
     notification.innerHTML = `
@@ -214,56 +244,6 @@ window.showQR = function(url) {
     document.querySelector('.qr-generator').scrollIntoView({ behavior: 'smooth' });
 };
 
-// Replace/Edit link function
-window.replaceLink = async function(shortCode, newUrl) {
-    try {
-        await sheetdbRequest(`/shortCode/${shortCode}`, 'PATCH', {
-            data: {
-                longUrl: newUrl,
-                updatedAt: new Date().toISOString()
-            }
-        });
-        showNotification('Link updated successfully!', 'success');
-    } catch (error) {
-        console.error('Error updating link:', error);
-        showNotification('Error updating link', 'error');
-    }
-};
-
-// Get link stats
-window.getLinkStats = async function(shortCode) {
-    try {
-        const links = await sheetdbRequest(`/search?shortCode=${shortCode}`);
-        if (links.length > 0) {
-            return links[0];
-        }
-        return null;
-    } catch (error) {
-        console.error('Error getting link stats:', error);
-        return null;
-    }
-};
-
-// Increment click count
-window.incrementClicks = async function(shortCode) {
-    try {
-        const links = await sheetdbRequest(`/search?shortCode=${shortCode}`);
-        if (links.length > 0) {
-            const link = links[0];
-            const currentClicks = parseInt(link.clicks) || 0;
-            
-            await sheetdbRequest(`/shortCode/${shortCode}`, 'PATCH', {
-                data: {
-                    clicks: (currentClicks + 1).toString(),
-                    lastClicked: new Date().toISOString()
-                }
-            });
-        }
-    } catch (error) {
-        console.error('Error incrementing clicks:', error);
-    }
-};
-
 // Advertisement rotation
 function rotateAds() {
     const ads = document.querySelectorAll('.ad-container .ad-content p');
@@ -275,96 +255,110 @@ function rotateAds() {
     ];
     
     ads.forEach(ad => {
-        const randomIndex = Math.floor(Math.random() * messages.length);
-        ad.textContent = messages[randomIndex];
+        if (ad) {
+            const randomIndex = Math.floor(Math.random() * messages.length);
+            ad.textContent = messages[randomIndex];
+        }
     });
 }
 
 // Smooth scroll for navigation
-document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-    anchor.addEventListener('click', function (e) {
-        e.preventDefault();
-        const target = document.querySelector(this.getAttribute('href'));
-        if (target) {
-            target.scrollIntoView({ behavior: 'smooth' });
-        }
-    });
-});
-
-// Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     // Add advertisement rotation
     setInterval(rotateAds, 8000);
     
-    // Add CSS for notifications
-    const style = document.createElement('style');
-    style.textContent = `
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 1rem 1.5rem;
-            background: white;
-            border-radius: 5px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            z-index: 9999;
-            animation: slideIn 0.3s ease;
-        }
-        
-        .notification.success {
-            border-left: 4px solid #48bb78;
-        }
-        
-        .notification.error {
-            border-left: 4px solid #f56565;
-        }
-        
-        .notification i {
-            font-size: 1.2rem;
-        }
-        
-        .notification.success i {
-            color: #48bb78;
-        }
-        
-        .notification.error i {
-            color: #f56565;
-        }
-        
-        @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
+    // Smooth scroll
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth' });
             }
-            to {
-                transform: translateX(0);
-                opacity: 1;
+        });
+    });
+
+    // Add CSS for notifications if not present
+    if (!document.querySelector('#dynamic-styles')) {
+        const style = document.createElement('style');
+        style.id = 'dynamic-styles';
+        style.textContent = `
+            .notification {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 1rem 1.5rem;
+                background: white;
+                border-radius: 5px;
+                box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                z-index: 9999;
+                animation: slideIn 0.3s ease;
             }
-        }
-        
-        .btn-qr-small {
-            background: #48bb78;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-left: 10px;
-        }
-        
-        .btn-small {
-            padding: 0.5rem 1rem;
-            font-size: 0.9rem;
-            margin-top: 10px;
-        }
-        
-        .link-stats {
-            margin-top: 10px;
-            color: #666;
-        }
-    `;
-    document.head.appendChild(style);
+            
+            .notification.success {
+                border-left: 4px solid #48bb78;
+            }
+            
+            .notification.error {
+                border-left: 4px solid #f56565;
+            }
+            
+            .notification i {
+                font-size: 1.2rem;
+            }
+            
+            .notification.success i {
+                color: #48bb78;
+            }
+            
+            .notification.error i {
+                color: #f56565;
+            }
+            
+            @keyframes slideIn {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+            
+            .btn-qr-small {
+                background: #48bb78;
+                color: white;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: 5px;
+                cursor: pointer;
+                margin-left: 10px;
+            }
+            
+            .btn-small {
+                padding: 0.5rem 1rem;
+                font-size: 0.9rem;
+                margin-top: 10px;
+            }
+            
+            .link-stats {
+                margin-top: 10px;
+                color: #666;
+            }
+
+            .btn-copy {
+                background: #4299e1;
+                color: white;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: 5px;
+                cursor: pointer;
+            }
+        `;
+        document.head.appendChild(style);
+    }
 });
