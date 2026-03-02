@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>koom.site - Professional Link Shortener</title>
+    <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/48/link.png">
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <i class="fas fa-link"></i>
+                <span>koom.site</span>
+            </div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#pricing">Pricing</a>
+                <a href="#blog">Blog</a>
+                <a href="dashboard.html" class="btn-primary">Dashboard</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-container">
+            <div class="hero-content">
+                <h1>Shorten, Track, and Optimize Your Links</h1>
+                <p>Professional link management with custom aliases, QR codes, and detailed analytics</p>
+                <div class="url-shortener-form">
+                    <input type="url" id="longUrl" placeholder="Enter your long URL here..." required>
+                    <input type="text" id="customAlias" placeholder="Custom alias (optional)">
+                    <input type="password" id="linkPassword" placeholder="Password protect (optional)">
+                    <button onclick="shortenUrl()" class="btn-large">
+                        <i class="fas fa-cut"></i> Shorten URL
+                    </button>
+                </div>
+                <div id="result" class="result-container"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <h2>Professional Features</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <i class="fas fa-chart-line"></i>
+                <h3>Advanced Analytics</h3>
+                <p>Track clicks, geographic data, and referrer sources</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-qrcode"></i>
+                <h3>QR Code Generator</h3>
+                <p>Generate professional QR codes for every shortened link</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-globe"></i>
+                <h3>Custom Subdomains</h3>
+                <p>COMING SOON: Use your own branded subdomains</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-shield-alt"></i>
+                <h3>Link Encryption</h3>
+                <p>Secure your links with advanced encryption (# symbol)</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Advertisement Banner -->
+    <div class="ad-banner">
+        <div class="ad-container">
+            <span>Advertisement</span>
+            <div class="ad-content">
+                <i class="fas fa-ad"></i>
+                <p>Your ad could be here - Contact us for premium placement</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Code Generator Section -->
+    <section class="qr-generator">
+        <h2>ESSME QR Code Generator</h2>
+        <div class="qr-container">
+            <input type="url" id="qrUrl" placeholder="Enter URL for QR code">
+            <button onclick="generateQR()" class="btn-secondary">
+                <i class="fas fa-qrcode"></i> Generate QR Code
+            </button>
+            <div id="qrResult" class="qr-result"></div>
+        </div>
+    </section>
+
+    <!-- Second Advertisement -->
+    <div class="ad-banner">
+        <div class="ad-container">
+            <span>Advertisement</span>
+            <div class="ad-content">
+                <i class="fas fa-bullhorn"></i>
+                <p>Premium ad space available - Drive traffic to your website</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subdomains Coming Soon -->
+    <section class="subdomains">
+        <h2>Branded Subdomains</h2>
+        <div class="subdomains-grid">
+            <div class="subdomain-card">
+                <h3>business.koom.site</h3>
+                <span class="coming-soon">COMING SOON</span>
+            </div>
+            <div class="subdomain-card">
+                <h3>marketing.koom.site</h3>
+                <span class="coming-soon">COMING SOON</span>
+            </div>
+            <div class="subdomain-card">
+                <h3>social.koom.site</h3>
+                <span class="coming-soon">COMING SOON</span>
+            </div>
+            <div class="subdomain-card">
+                <h3>api.koom.site</h3>
+                <span class="coming-soon">COMING SOON</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>koom.site</h4>
+                <p>Professional link management platform</p>
+                <div class="social-links">
+                    <a href="#"><i class="fab fa-twitter"></i></a>
+                    <a href="#"><i class="fab fa-linkedin"></i></a>
+                    <a href="#"><i class="fab fa-github"></i></a>
+                </div>
+            </div>
+            <div class="footer-section">
+                <h4>Quick Links</h4>
+                <a href="#features">Features</a>
+                <a href="#pricing">Pricing</a>
+                <a href="#blog">Blog</a>
+                <a href="#">API</a>
+            </div>
+            <div class="footer-section">
+                <h4>Legal</h4>
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+                <a href="#">Cookie Policy</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2024 koom.site. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>
