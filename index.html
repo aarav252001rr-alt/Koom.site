@@ -36,7 +36,7 @@
                     <input type="url" id="longUrl" placeholder="Enter your long URL here..." required>
                     <input type="text" id="customAlias" placeholder="Custom alias (optional)">
                     <input type="password" id="linkPassword" placeholder="Password protect (optional)">
-                    <button onclick="shortenUrl()" class="btn-large">
+                    <button onclick="shortenUrl(event)" class="btn-large">
                         <i class="fas fa-cut"></i> Shorten URL
                     </button>
                 </div>
@@ -160,6 +160,8 @@
         </div>
     </footer>
 
-    <script type="module" src="script.js"></script>
+    <!-- Load scripts in correct order -->
+    <script src="sheetdb-config.js"></script>
+    <script src="script.js"></script>
 </body>
-</html>
+    </html>
