@@ -154,7 +154,7 @@ window.shortenUrl = async function(event) {
             status: 'active'
         };
 
-        await sheetdbRequest('', 'POST', { data: [linkData] });
+        await sheetdbRequest('', 'POST', { data: linkData });
 
         // Display result
         displayResult(shortUrl, shortCode);
