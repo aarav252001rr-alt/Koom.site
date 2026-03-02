@@ -1,8 +1,7 @@
 // SheetDB Configuration
+// Replace with your actual SheetDB API URL from https://sheetdb.io
 const SHEETDB_CONFIG = {
-    // Replace with your SheetDB API URL
-    // Create one at https://sheetdb.io
-    API_URL: 'https://sheetdb.io/api/v1/z0uon20l8kavz',
+    API_URL: 'https://sheetdb.io/api/v1/z0uon20l8kavz', // Replace this!
     
     // Sheet names
     SHEETS: {
@@ -12,4 +11,5 @@ const SHEETDB_CONFIG = {
     }
 };
 
-export default SHEETDB_CONFIG;
+// Make it globally available
+window.SHEETDB_CONFIG = SHEETDB_CONFIG;
