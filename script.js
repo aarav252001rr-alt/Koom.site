@@ -1,12 +1,26 @@
-// Initialize Supabase client
+// Global variables
 let supabase;
 
-// Wait for DOM to load
+// Make all functions globally available
+window.supabase = supabase;
+
+// Initialize everything when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Script.js loaded successfully');
+    console.log('DOM fully loaded');
     
     // Initialize Supabase
     initSupabase();
+    
+    // Add event listeners
+    const shortenBtn = document.getElementById('shortenBtn');
+    if (shortenBtn) {
+        shortenBtn.addEventListener('click', shortenUrl);
+    }
+    
+    const generateQrBtn = document.getElementById('generateQrBtn');
+    if (generateQrBtn) {
+        generateQrBtn.addEventListener('click', generateQR);
+    }
     
     // Add advertisement rotation
     setInterval(rotateAds, 8000);
@@ -21,8 +35,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-
-    // Add CSS for notifications if not present
+    
+    // Add dynamic styles
     addDynamicStyles();
 });
 
@@ -41,6 +55,7 @@ async function initSupabase() {
             window.SUPABASE_CONFIG.ANON_KEY
         );
         console.log('Supabase client initialized');
+        return supabase;
     } catch (error) {
         console.error('Error initializing Supabase:', error);
         showNotification('Error connecting to database', 'error');
@@ -74,7 +89,7 @@ async function supabaseRequest(table, operation = 'select', data = null, query =
             case 'insert':
                 result = await supabase
                     .from(table)
-                    .insert(data)
+                    .insert([data])
                     .select();
                 break;
 
@@ -113,7 +128,6 @@ function generateShortCode(length = 6) {
     for (let i = 0; i < length; i++) {
         result += characters.charAt(Math.floor(Math.random() * characters.length));
     }
-    // Add # for encryption indicator
     return '#' + result;
 }
 
@@ -134,8 +148,9 @@ async function aliasExists(alias) {
 }
 
 // Shorten URL function
-window.shortenUrl = async function(event) {
+async function shortenUrl(event) {
     event.preventDefault();
+    console.log('Shorten function called');
     
     const longUrl = document.getElementById('longUrl').value;
     const customAlias = document.getElementById('customAlias').value;
@@ -155,7 +170,7 @@ window.shortenUrl = async function(event) {
     }
 
     // Show loading state
-    const button = event.target;
+    const button = document.getElementById('shortenBtn');
     const originalText = button.innerHTML;
     button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Shortening...';
     button.disabled = true;
@@ -225,7 +240,7 @@ window.shortenUrl = async function(event) {
         button.innerHTML = originalText;
         button.disabled = false;
     }
-};
+}
 
 // Display result
 function displayResult(shortUrl, shortCode) {
@@ -284,13 +299,20 @@ function showNotification(message, type) {
 }
 
 // Generate QR code
-window.generateQR = function() {
+function generateQR() {
     const url = document.getElementById('qrUrl').value;
     if (!url) {
         alert('Please enter a URL');
         return;
     }
     generateQRForUrl(url);
+}
+
+// Show QR for specific URL
+window.showQR = function(url) {
+    document.getElementById('qrUrl').value = url;
+    generateQR();
+    document.querySelector('.qr-generator').scrollIntoView({ behavior: 'smooth' });
 };
 
 function generateQRForUrl(url) {
@@ -324,13 +346,6 @@ function downloadQR(url, filename) {
     link.click();
     document.body.removeChild(link);
 }
-
-// Show QR for specific URL
-window.showQR = function(url) {
-    document.getElementById('qrUrl').value = url;
-    generateQR();
-    document.querySelector('.qr-generator').scrollIntoView({ behavior: 'smooth' });
-};
 
 // Advertisement rotation
 function rotateAds() {
@@ -516,5 +531,4 @@ window.incrementClicks = async function(shortCode) {
     }
 };
 
-// Console log to confirm everything is loaded
 console.log('All functions loaded successfully');

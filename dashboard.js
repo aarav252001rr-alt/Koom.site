@@ -1,12 +1,12 @@
-// Initialize Supabase
+// Global variables
 let supabase;
+let currentEditCode = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Dashboard loaded');
     initSupabase();
     loadLinks();
-    
-    // Add CSS for additional styles
     addDashboardStyles();
 });
 
@@ -19,7 +19,6 @@ async function initSupabase() {
     }
 
     try {
-        // Create Supabase client
         supabase = window.supabase.createClient(
             window.SUPABASE_CONFIG.URL,
             window.SUPABASE_CONFIG.ANON_KEY
@@ -30,8 +29,6 @@ async function initSupabase() {
         showNotification('Error connecting to database', 'error');
     }
 }
-
-let currentEditCode = null;
 
 // API Helper Functions
 async function supabaseRequest(table, operation = 'select', data = null, query = null) {
@@ -60,7 +57,7 @@ async function supabaseRequest(table, operation = 'select', data = null, query =
             case 'insert':
                 result = await supabase
                     .from(table)
-                    .insert(data)
+                    .insert([data])
                     .select();
                 break;
 
@@ -126,7 +123,7 @@ async function aliasExists(alias) {
             null,
             { field: 'shortcode', value: alias }
         );
-        return links.length > 0;
+        return links && links.length > 0;
     } catch (error) {
         console.error('Error checking alias:', error);
         return false;
@@ -277,7 +274,7 @@ window.editLink = function(code) {
         null,
         { field: 'shortcode', value: code }
     ).then(links => {
-        if (links.length > 0) {
+        if (links && links.length > 0) {
             const link = links[0];
             document.getElementById('modalLongUrl').value = link.longurl;
             document.getElementById('modalCustomAlias').value = link.shortcode;
@@ -322,9 +319,8 @@ window.showQR = function(url) {
     const downloadBtn = document.createElement('button');
     downloadBtn.className = 'btn-secondary btn-small';
     downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download QR';
-    downloadBtn.onclick = () => downloadQR(qrUrl, 'qrcode.png');
+    downloadBtn.onclick = function() { downloadQR(qrUrl, 'qrcode.png'); };
     
-    qrContainer.innerHTML = '';
     qrContainer.appendChild(img);
     qrContainer.appendChild(downloadBtn);
     
@@ -501,4 +497,4 @@ function addDashboardStyles() {
         }
     `;
     document.head.appendChild(style);
-      }
+}

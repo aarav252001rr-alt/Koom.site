@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <!-- Add Supabase client library -->
+    <!-- Load Supabase first -->
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -38,7 +38,7 @@
                     <input type="url" id="longUrl" placeholder="Enter your long URL here..." required>
                     <input type="text" id="customAlias" placeholder="Custom alias (optional)">
                     <input type="password" id="linkPassword" placeholder="Password protect (optional)">
-                    <button onclick="shortenUrl(event)" class="btn-large">
+                    <button id="shortenBtn" class="btn-large">
                         <i class="fas fa-cut"></i> Shorten URL
                     </button>
                 </div>
@@ -90,7 +90,7 @@
         <h2>ESSME QR Code Generator</h2>
         <div class="qr-container">
             <input type="url" id="qrUrl" placeholder="Enter URL for QR code">
-            <button onclick="generateQR()" class="btn-secondary">
+            <button id="generateQrBtn" class="btn-secondary">
                 <i class="fas fa-qrcode"></i> Generate QR Code
             </button>
             <div id="qrResult" class="qr-result"></div>
@@ -162,8 +162,8 @@
         </div>
     </footer>
 
-    <!-- Load scripts in correct order -->
+    <!-- Load scripts after everything -->
     <script src="supabase-config.js"></script>
     <script src="script.js"></script>
 </body>
-              </html>
+</html>
