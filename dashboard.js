@@ -1,5 +1,4 @@
-// Global variables
-let supabase;
+// Global variables - use window object
 let currentEditCode = null;
 
 // Initialize on page load
@@ -19,10 +18,13 @@ async function initSupabase() {
     }
 
     try {
-        supabase = window.supabase.createClient(
-            window.SUPABASE_CONFIG.URL,
-            window.SUPABASE_CONFIG.ANON_KEY
-        );
+        // Create Supabase client if not exists
+        if (!window.globalSupabase) {
+            window.globalSupabase = window.supabase.createClient(
+                window.SUPABASE_CONFIG.URL,
+                window.SUPABASE_CONFIG.ANON_KEY
+            );
+        }
         console.log('Supabase client initialized');
     } catch (error) {
         console.error('Error initializing Supabase:', error);
@@ -30,9 +32,14 @@ async function initSupabase() {
     }
 }
 
+// Get Supabase instance
+function getSupabase() {
+    return window.globalSupabase;
+}
+
 // API Helper Functions
 async function supabaseRequest(table, operation = 'select', data = null, query = null) {
-    if (!supabase) {
+    if (!window.globalSupabase) {
         await initSupabase();
     }
 
@@ -42,12 +49,12 @@ async function supabaseRequest(table, operation = 'select', data = null, query =
         switch (operation) {
             case 'select':
                 if (query) {
-                    result = await supabase
+                    result = await window.globalSupabase
                         .from(table)
                         .select('*')
                         .eq(query.field, query.value);
                 } else {
-                    result = await supabase
+                    result = await window.globalSupabase
                         .from(table)
                         .select('*')
                         .order('createdat', { ascending: false });
@@ -55,14 +62,14 @@ async function supabaseRequest(table, operation = 'select', data = null, query =
                 break;
 
             case 'insert':
-                result = await supabase
+                result = await window.globalSupabase
                     .from(table)
                     .insert([data])
                     .select();
                 break;
 
             case 'update':
-                result = await supabase
+                result = await window.globalSupabase
                     .from(table)
                     .update(data)
                     .eq(query.field, query.value)
@@ -70,7 +77,7 @@ async function supabaseRequest(table, operation = 'select', data = null, query =
                 break;
 
             case 'delete':
-                result = await supabase
+                result = await window.globalSupabase
                     .from(table)
                     .delete()
                     .eq(query.field, query.value);
