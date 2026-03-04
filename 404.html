@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link Not Found - koom.site</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <i class="fas fa-link"></i>
+                <span>koom.site</span>
+            </div>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="dashboard.html">Dashboard</a>
+            </div>
+        </div>
+    </nav>
+
+    <div style="text-align: center; padding: 100px 20px;">
+        <i class="fas fa-link" style="font-size: 80px; color: #f56565; margin-bottom: 20px;"></i>
+        <h1 style="color: #333; margin-bottom: 20px;">404 - Link Not Found</h1>
+        <p style="color: #666; margin-bottom: 30px;">The short link you're looking for doesn't exist or has been removed.</p>
+        <div id="shortcodeDisplay" style="background: #f7f7f7; padding: 15px; border-radius: 5px; max-width: 300px; margin: 0 auto 30px; font-family: monospace;"></div>
+        <a href="index.html" class="btn-primary" style="text-decoration: none; display: inline-block;">Create New Link</a>
+    </div>
+
+    <script>
+        const shortcode = window.location.pathname.substring(1) || window.location.hash.substring(1);
+        if (shortcode) {
+            document.getElementById('shortcodeDisplay').innerHTML = `Link: <strong>${shortcode}</strong> not found`;
+        }
+    </script>
+</body>
+  </html>
