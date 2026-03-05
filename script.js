@@ -133,7 +133,7 @@ function generateShortCode(length = 6) {
     for (let i = 0; i < length; i++) {
         result += characters.charAt(Math.floor(Math.random() * characters.length));
     }
-    return '#' + result;
+    return result; // Yahan se '#' hata diya gaya hai
 }
 
 // Check if alias exists
@@ -248,23 +248,7 @@ async function shortenUrl(event) {
 }
 
 // Display result
-function displayResult(shortUrl, shortCode) {
-    const resultDiv = document.getElementById('result');
-    resultDiv.innerHTML = `
-        <div class="shortened-url">
-            <a href="${shortUrl}" target="_blank">${shortUrl}</a>
-            <button onclick="copyToClipboard('${shortUrl}')" class="btn-copy">
-                <i class="fas fa-copy"></i> Copy
-            </button>
-            <button onclick="showQR('${shortUrl}')" class="btn-qr-small">
-                <i class="fas fa-qrcode"></i> QR
-            </button>
-        </div>
-        <div class="link-stats">
-            <small>🔒 Encrypted with # | Track clicks in dashboard</small>
-        </div>
-    `;
-}
+
 
 // Copy to clipboard
 window.copyToClipboard = function(text) {
@@ -282,7 +266,23 @@ window.copyToClipboard = function(text) {
     });
 };
 
-// Show notification
+// Sfunction displayResult(shortUrl, shortCode) {
+    const resultDiv = document.getElementById('result');
+    resultDiv.innerHTML = `
+        <div class="shortened-url">
+            <a href="${shortUrl}" target="_blank">${shortUrl}</a>
+            <button onclick="copyToClipboard('${shortUrl}')" class="btn-copy">
+                <i class="fas fa-copy"></i> Copy
+            </button>
+            <button onclick="showQR('${shortUrl}')" class="btn-qr-small">
+                <i class="fas fa-qrcode"></i> QR
+            </button>
+        </div>
+        <div class="link-stats">
+            <small>🔒 Secure Link | Track clicks in dashboard</small>
+        </div>
+    `;
+        }how notification
 function showNotification(message, type) {
     // Remove existing notifications
     const existing = document.querySelector('.notification');
