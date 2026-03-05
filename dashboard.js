@@ -1,5 +1,5 @@
 // Global variables
-let supabase;
+let supabaseClient; // Variable ka naam change kiya gaya hai clash avoid karne ke liye
 let currentEditCode = null;
 
 // Initialize on page load
@@ -19,7 +19,8 @@ async function initSupabase() {
     }
 
     try {
-        supabase = window.supabase.createClient(
+        // Yahan window.supabase ka use karke hum apna supabaseClient initialize kar rahe hain
+        supabaseClient = window.supabase.createClient(
             window.SUPABASE_CONFIG.URL,
             window.SUPABASE_CONFIG.ANON_KEY
         );
@@ -32,7 +33,7 @@ async function initSupabase() {
 
 // API Helper Functions
 async function supabaseRequest(table, operation = 'select', data = null, query = null) {
-    if (!supabase) {
+    if (!supabaseClient) {
         await initSupabase();
     }
 
@@ -42,13 +43,13 @@ async function supabaseRequest(table, operation = 'select', data = null, query =
         switch (operation) {
             case 'select':
                 if (query) {
-                    result = await supabase
+                    result = await supabaseClient
                         .from(table)
                         .select('*')
                         .eq(query.field, query.value)
                         .order('createdat', { ascending: false });
                 } else {
-                    result = await supabase
+                    result = await supabaseClient
                         .from(table)
                         .select('*')
                         .order('createdat', { ascending: false });
@@ -56,14 +57,14 @@ async function supabaseRequest(table, operation = 'select', data = null, query =
                 break;
 
             case 'insert':
-                result = await supabase
+                result = await supabaseClient
                     .from(table)
                     .insert([data])
                     .select();
                 break;
 
             case 'update':
-                result = await supabase
+                result = await supabaseClient
                     .from(table)
                     .update(data)
                     .eq(query.field, query.value)
@@ -71,7 +72,7 @@ async function supabaseRequest(table, operation = 'select', data = null, query =
                 break;
 
             case 'delete':
-                result = await supabase
+                result = await supabaseClient
                     .from(table)
                     .delete()
                     .eq(query.field, query.value);
@@ -189,7 +190,7 @@ window.saveLink = async function() {
                 clicks: 0,
                 encrypted: true,
                 status: 'active',
-                created_by: user.email || 'anonymous' // Saving user email to support the role logic
+                created_by: user.email || 'anonymous' 
             };
 
             await supabaseRequest(
@@ -208,7 +209,7 @@ window.saveLink = async function() {
     }
 };
 
-// Load links (COMBINED LOGIC: Sirf admin sab links dekh sakta hai)
+// Load links (Admin dekhega sab, user dekhega apne links)
 async function loadLinks() {
     const user = JSON.parse(sessionStorage.getItem('user')) || {};
 
@@ -227,7 +228,7 @@ async function loadLinks() {
                 { field: 'created_by', value: user.email }
             );
         } else {
-            // Fallback if no user logic is present during testing
+            // Fallback
             links = await supabaseRequest(window.SUPABASE_CONFIG.TABLES.LINKS);
         }
         
@@ -520,4 +521,4 @@ function addDashboardStyles() {
         }
     `;
     document.head.appendChild(style);
-}
+                      }
