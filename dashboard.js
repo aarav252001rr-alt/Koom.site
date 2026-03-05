@@ -1,151 +1,142 @@
+// Global variables
 let supabase;
+let currentEditCode = null;
 
-document.addEventListener("DOMContentLoaded", init);
-
-async function init() {
-
-supabase = window.supabase.createClient(
-SUPABASE_CONFIG.URL,
-SUPABASE_CONFIG.ANON_KEY
-);
-
-const { data } = await supabase.auth.getSession();
-
-if (!data.session) {
-window.location.href = "login.html";
-return;
-}
-
-loadLinks();
-}
-
-
-
-async function loadLinks() {
-
-const { data, error } = await supabase
-.from("links")
-.select("*")
-.order("createdat",{ascending:false});
-
-if(error){
-console.error(error);
-return;
-}
-
-displayLinks(data);
-}
-
-
-
-function displayLinks(links){
-
-const container=document.getElementById("linksContainer");
-
-container.innerHTML="";
-
-links.forEach(link=>{
-
-const card=document.createElement("div");
-
-card.className="link-card";
-
-card.innerHTML=`
-
-<h4>${link.shortcode}</h4>
-
-<p>${link.longurl}</p>
-
-<div>
-
-<button onclick="copyLink('${link.shortcode}')">
-Copy
-</button>
-
-<button onclick="deleteLink('${link.shortcode}')">
-Delete
-</button>
-
-</div>
-
-`;
-
-container.appendChild(card);
-
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Dashboard loaded');
+    initSupabase();
+    loadLinks();
+    addDashboardStyles();
 });
 
+// Initialize Supabase
+async function initSupabase() {
+    if (!window.SUPABASE_CONFIG) {
+        console.error('Supabase configuration not found!');
+        showNotification('Configuration error! Please check console.', 'error');
+        return;
+    }
+
+    try {
+        supabase = window.supabase.createClient(
+            window.SUPABASE_CONFIG.URL,
+            window.SUPABASE_CONFIG.ANON_KEY
+        );
+        console.log('Supabase client initialized');
+    } catch (error) {
+        console.error('Error initializing Supabase:', error);
+        showNotification('Error connecting to database', 'error');
+    }
+}
+
+// API Helper
+async function supabaseRequest(table, operation = 'select', data = null, query = null) {
+
+    if (!supabase) await initSupabase()
+
+    let result
+
+    switch(operation){
+
+        case "select":
+
+            if(query){
+
+                result = await supabase
+                .from(table)
+                .select("*")
+                .eq(query.field,query.value)
+
+            }else{
+
+                result = await supabase
+                .from(table)
+                .select("*")
+                .order("createdat",{ascending:false})
+
+            }
+
+        break
+
+
+        case "insert":
+
+            result = await supabase
+            .from(table)
+            .insert([data])
+            .select()
+
+        break
+
+
+        case "update":
+
+            result = await supabase
+            .from(table)
+            .update(data)
+            .eq(query.field,query.value)
+            .select()
+
+        break
+
+
+        case "delete":
+
+            result = await supabase
+            .from(table)
+            .delete()
+            .eq(query.field,query.value)
+
+        break
+
+    }
+
+    if(result.error) throw result.error
+
+    return result.data
+
 }
 
 
+// ADMIN + USER FILTER LOGIC
+async function loadLinks(){
 
-async function saveLink(){
+const user = JSON.parse(sessionStorage.getItem('user'))
 
-const longUrl=document.getElementById("modalLongUrl").value;
+try{
 
-const alias=document.getElementById("modalCustomAlias").value;
+let links
 
-if(!longUrl){
-alert("Enter URL");
-return;
-}
+if(user.role==="admin"){
 
-const shortcode=alias || Math.random().toString(36).substring(2,8);
+links = await supabaseRequest(window.SUPABASE_CONFIG.TABLES.LINKS)
 
-await supabase.from("links").insert({
+}else{
 
-shortcode:shortcode,
-longurl:longUrl,
-createdat:new Date()
-
-});
-
-closeModal();
-
-loadLinks();
+links = await supabaseRequest(
+window.SUPABASE_CONFIG.TABLES.LINKS,
+"select",
+null,
+{ field:"created_by", value:user.email }
+)
 
 }
 
+if(links && links.length>0){
 
+displayLinks(links)
 
-async function deleteLink(code){
+}else{
 
-if(!confirm("Delete link?")) return;
-
-await supabase
-.from("links")
-.delete()
-.eq("shortcode",code);
-
-loadLinks();
+document.getElementById("linksContainer").innerHTML='<p class="no-links">No links found.</p>'
 
 }
 
+}catch(error){
 
-
-function showCreateModal(){
-document.getElementById("linkModal").style.display="block";
-}
-
-function closeModal(){
-document.getElementById("linkModal").style.display="none";
-}
-
-
-
-function copyLink(code){
-
-navigator.clipboard.writeText("https://koom.site/"+code);
-
-alert("Copied");
+console.error("Error loading links:",error)
 
 }
 
-
-
-async function logout(){
-
-await supabase.auth.signOut();
-
-window.location.href="login.html";
-
-}
+                  }
