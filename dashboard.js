@@ -1,10 +1,22 @@
 // Global variables
-let supabaseClient; // Variable ka naam change kiya gaya hai clash avoid karne ke liye
+let supabaseClient;
 let currentEditCode = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Dashboard loaded');
+    
+    // 🔒 AUTHENTICATION CHECK: Agar user logged in nahi hai, toh wapas bhej do
+    const userStr = sessionStorage.getItem('user');
+    if (!userStr) {
+        console.warn('Unauthorized access detected. Redirecting to login...');
+        window.location.replace('index.html'); // Bina login wale ko index.html par bhej do
+        return; // Aage ka koi code run nahi hoga
+    }
+
+    const user = JSON.parse(userStr);
+    console.log('Welcome:', user.email);
+
     initSupabase();
     loadLinks();
     addDashboardStyles();
@@ -19,7 +31,6 @@ async function initSupabase() {
     }
 
     try {
-        // Yahan window.supabase ka use karke hum apna supabaseClient initialize kar rahe hain
         supabaseClient = window.supabase.createClient(
             window.SUPABASE_CONFIG.URL,
             window.SUPABASE_CONFIG.ANON_KEY
@@ -211,7 +222,10 @@ window.saveLink = async function() {
 
 // Load links (Admin dekhega sab, user dekhega apne links)
 async function loadLinks() {
-    const user = JSON.parse(sessionStorage.getItem('user')) || {};
+    const userStr = sessionStorage.getItem('user');
+    if (!userStr) return; // 🔒 Security: Agar bina login function call hua toh kuch mat karo
+
+    const user = JSON.parse(userStr);
 
     try {
         let links;
@@ -228,8 +242,8 @@ async function loadLinks() {
                 { field: 'created_by', value: user.email }
             );
         } else {
-            // Fallback
-            links = await supabaseRequest(window.SUPABASE_CONFIG.TABLES.LINKS);
+            // 🔒 Security: Agar valid user data nahi hai toh empty array return karo
+            links = [];
         }
         
         if (links && links.length > 0) {
@@ -387,7 +401,7 @@ function showNotification(message, type = 'info') {
 window.logout = function() {
     if (confirm('Are you sure you want to logout?')) {
         sessionStorage.removeItem('user'); // Also clearing the session
-        window.location.href = 'index.html';
+        window.location.replace('index.html'); // Logout hone ke baad index.html par bhej do
     }
 };
 
@@ -521,4 +535,4 @@ function addDashboardStyles() {
         }
     `;
     document.head.appendChild(style);
-                      }
+                            }
