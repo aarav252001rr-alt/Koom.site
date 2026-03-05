@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Dashboard - koom.site</title>
 
 <link rel="stylesheet" href="styles.css">
@@ -20,7 +19,6 @@
 <body>
 
 <nav class="navbar">
-
 <div class="nav-container">
 
 <div class="logo">
@@ -30,26 +28,59 @@
 
 <div class="nav-links">
 <a href="index.html">Home</a>
-<a class="active">Dashboard</a>
+<a href="#" class="active">Dashboard</a>
 <a href="#" onclick="logout()">Logout</a>
 </div>
 
 </div>
-
 </nav>
 
 
+<div class="dashboard" id="dashboardMain" style="display:none">
 
-<div class="dashboard">
+<div class="dashboard-sidebar">
+
+<div class="user-profile">
+<i class="fas fa-user-circle"></i>
+<h3>Welcome back!</h3>
+<p>Link Manager</p>
+</div>
+
+<ul class="sidebar-menu">
+<li class="active"><i class="fas fa-link"></i> My Links</li>
+<li><i class="fas fa-chart-bar"></i> Analytics</li>
+<li><i class="fas fa-qrcode"></i> QR Codes</li>
+<li><i class="fas fa-cog"></i> Settings</li>
+</ul>
+
+<div class="sidebar-ad">
+<div class="ad-container">
+<span>Ad</span>
+<p>Upgrade to Premium</p>
+<small>Get advanced analytics</small>
+</div>
+</div>
+
+</div>
+
 
 <div class="dashboard-main">
 
-<div class="links-header">
+<div class="ad-banner">
+<div class="ad-container">
+<span>Advertisement</span>
+<div class="ad-content">
+<i class="fas fa-chart-line"></i>
+<p>Track your links with premium analytics - Coming Soon!</p>
+</div>
+</div>
+</div>
 
-<h2>Your Links</h2>
+<div class="links-header">
+<h2>Your Shortened Links</h2>
 
 <button onclick="showCreateModal()" class="btn-primary">
-<i class="fas fa-plus"></i> Create Link
+<i class="fas fa-plus"></i> Create New Link
 </button>
 
 </div>
@@ -58,18 +89,16 @@
 <div id="linksContainer" class="links-grid">
 
 <div class="loading">
-Loading links...
+Loading your links...
 </div>
 
 </div>
 
-
-<div id="qrResult"></div>
-
-</div>
+<div id="qrResult" class="qr-result"></div>
 
 </div>
 
+</div>
 
 
 <div id="linkModal" class="modal">
@@ -78,16 +107,16 @@ Loading links...
 
 <span class="close" onclick="closeModal()">&times;</span>
 
-<h3 id="modalTitle">Create Link</h3>
+<h3 id="modalTitle">Create New Link</h3>
 
-<input id="modalLongUrl" placeholder="Long URL">
+<input type="url" id="modalLongUrl" placeholder="Enter long URL" required>
 
-<input id="modalCustomAlias" placeholder="Custom Alias">
+<input type="text" id="modalCustomAlias" placeholder="Custom alias (optional)">
 
-<input id="modalPassword" type="password" placeholder="Password (optional)">
+<input type="password" id="modalPassword" placeholder="Password protect (optional)">
 
 <button onclick="saveLink()" class="btn-primary">
-Save
+Save Link
 </button>
 
 </div>
@@ -95,8 +124,31 @@ Save
 </div>
 
 
+<script>
+
+const user=sessionStorage.getItem("user")
+
+if(!user){
+
+window.location.href="login.html"
+
+}else{
+
+document.getElementById("dashboardMain").style.display="flex"
+
+}
+
+function logout(){
+
+sessionStorage.removeItem("user")
+
+window.location.href="login.html"
+
+}
+
+</script>
 
 <script src="dashboard.js"></script>
 
 </body>
-</html>
+  </html>
