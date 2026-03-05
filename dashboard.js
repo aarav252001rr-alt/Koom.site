@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const userStr = sessionStorage.getItem('user');
     if (!userStr) {
         console.warn('Unauthorized access detected. Redirecting to login...');
-        window.location.replace('index.html'); // Bina login wale ko index.html par bhej do
+        window.location.replace('login.html'); // Bina login wale ko index.html par bhej do
         return; // Aage ka koi code run nahi hoga
     }
 
