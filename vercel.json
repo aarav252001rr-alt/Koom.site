@@ -1,7 +1,8 @@
 {
-  "cleanUrls": true,
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/redirect.html" }
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/redirect.html"
+    }
   ]
 }
