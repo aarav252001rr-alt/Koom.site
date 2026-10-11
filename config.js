@@ -5,6 +5,7 @@ const API_CONFIG = {
   API_KEY: "koommusic1689",                         // sent as X-API-Key to the Downloader (visible in the browser — not a real secret)
   MUSIC_API_KEY: "koommusic1689"                    // only needed if the Music API has API_KEY set; harmless otherwise
 };
+API_CONFIG.TRANSLATE_URL = "";
 const CREATOR = {
   name: "Ritesh",
   instagram: "https://instagram.com/@r.it3s.h/",   // handle or full URL
