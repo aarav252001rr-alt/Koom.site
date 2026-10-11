@@ -313,3 +313,21 @@ select.sel{background:var(--fill2);color:var(--ink);border:0;border-radius:8px;p
 @keyframes kspin{to{transform:rotate(360deg)}}
 .tabs{backdrop-filter:blur(26px) saturate(1.4)}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ===== v3: lyrics, quality chip, dialogs, settings ===== */
+#ly p{will-change:transform,opacity,filter;transition-delay:calc(var(--d,0)*24ms)}#ly p.on{transition-delay:0s;transform:scale(1.015)}
+#ly p .wd{transition:color .35s ease,opacity .35s ease,text-shadow .35s ease}
+#ly p.on .wd{opacity:.55}#ly p.on .wd.w{opacity:1;text-shadow:0 0 22px color-mix(in srgb,var(--ink) 28%,transparent)}
+.vrow{display:flex;align-items:center;gap:12px}.vrow .vl{flex:1;min-width:70px}.vrow #nbd{margin:0;flex:none}
+.qchip{display:inline-block;padding:6px 11px;border-radius:99px;background:var(--fill2);font-size:.72rem;font-weight:700;white-space:nowrap;letter-spacing:.01em}
+.kdlg{position:fixed;inset:0;z-index:400;display:grid;place-items:center;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);padding:20px;animation:fi .2s both}
+.kbox{width:100%;max-width:380px;background:var(--panel);backdrop-filter:blur(30px);border:1px solid var(--line);border-radius:18px;padding:22px;animation:up .3s both}
+.kbox h3{margin:0 0 14px;font-size:1.15rem}.kbox input{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:var(--fill);color:var(--ink);font:inherit;margin-bottom:16px}
+.kbtn{display:flex;gap:10px;justify-content:flex-end}
+.newpl .art{display:grid;place-items:center;background:var(--fill2)}.newpl .plus{font-size:3rem;font-weight:300;opacity:.6}
+.sjump{display:flex;gap:8px;overflow-x:auto;margin:14px 0 6px;position:sticky;top:0;z-index:15;padding:8px 0;scrollbar-width:none;background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(16px)}
+.sjump button{padding:7px 14px;border-radius:99px;background:var(--fill);font-weight:600;font-size:.84rem;white-space:nowrap}.sjump button:hover{background:var(--fill2)}
+.sg{scroll-margin-top:64px}
+.rm *,.rm *::before,.rm *::after{animation:none!important;transition:none!important}
+@media(max-width:860px){.sjump{top:calc(54px + env(safe-area-inset-top))}}
+.nmw .nmi{max-width:104px;min-width:0}.nmw{flex:none}

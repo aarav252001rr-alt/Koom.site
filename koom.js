@@ -29,17 +29,16 @@ const SBASE = () => API_CONFIG.STREAM_API_URL.replace(/\/$/, '');
 const fix = raw => { const p = new URL(raw, SBASE() + '/'); return /^\/(stream|download)\//.test(p.pathname) ? SBASE() + p.pathname + p.search : p.href; };   // always use our configured (https) host
 /* quality: presets map onto the real formats the Downloader API reports for each song (GET /formats) */
 const KQP = [['best', 'Auto — best available'], ['high', 'High'], ['std', 'Standard'], ['low', 'Data saver']], EX = new Map();
-const curQ = () => LS.get('koom.q') || 'best', ytu = id => 'https://www.youtube.com/watch?v=' + id;
+const curQ = () => S.sq || LS.get('koom.q') || 'best', ytu = id => 'https://www.youtube.com/watch?v=' + id;
 async function fmts(id) {
   const r = await http(API_CONFIG.STREAM_API_URL, '/formats', { params: { url: ytu(id) }, ttl: 6e5 });
   const a = Array.isArray(r) ? r : r.formats || r.audio_formats || r.results || [];
   return a.filter(f => f && (f.format_id || f.id) && (f.vcodec == null || f.vcodec === 'none' || f.audio_only === true || (f.acodec && f.acodec !== 'none' && !f.height)))
     .map(f => ({ id: String(f.format_id || f.id), ext: f.ext || f.container || '', abr: Math.round(f.abr || f.tbr || f.bitrate || 0), note: f.quality_label || f.format_note || f.quality || '', size: f.filesize || f.filesize_approx || 0 })).sort((a, b) => b.abr - a.abr);
 }
-async function pickFmt(id) {
-  if (EX.has(id)) return EX.get(id); const q = curQ(); if (q === 'best') return 'best';
-  try { const L = await fmts(id); if (!L.length) return 'best'; return (q === 'high' ? L[0] : q === 'low' ? L[L.length - 1] : L[Math.floor((L.length - 1) / 2)]).id; } catch (e) { return 'best'; }
-}
+const LV = { best: 'best', high: 'high', std: 'standard', low: 'low' };
+const composeFmt = lv => { const l = LV[lv] || 'best'; return S.sf ? l + '-' + S.sf : l; };   // e.g. "high-m4a" (backend resolves it; old backends fall back to best)
+async function pickFmt(id) { return EX.get(id) || composeFmt(curQ()); }
 const dropSC = id => { for (const k of [...SC.keys()]) if (k.startsWith(id + '|')) SC.delete(k); };
 async function streamUrl(id) {                       // Downloader API: POST /stream {url, format_id} -> stream_url (valid ~expires_in s)
   if (!/^[\w-]{11}$/.test(id)) throw new Error('Invalid video id');
@@ -50,12 +49,15 @@ async function streamUrl(id) {                       // Downloader API: POST /st
   QINFO.set(id, { fmt: String(r.format_id || ''), ext: r.ext || '' });
   const u = fix(raw); SC.set(key, { u, exp: Date.now() + Math.max(30, (r.expires_in || 300) - 45) * 1000 }); return u;
 }
-async function qualityMenu(t, anchor) {
+async function fmtMenu(t, anchor, head, cur, cb) {
   try {
     const L = await fmts(t.c.videoId); if (!L.length) return toast('No quality options for this song');
-    const cur = EX.get(t.c.videoId);
-    openMenu([{ l: 'Auto — best available', i: 'check', on: !cur, fn: () => setFmt(t, null) }, ...L.map(f => ({ l: `${(f.ext || 'audio').toUpperCase()} · ${f.abr ? f.abr + ' kbps' : f.note || f.id}${f.size ? ' · ' + (f.size / 1048576).toFixed(1) + ' MB' : ''}`, i: 'check', on: cur === f.id, fn: () => setFmt(t, f.id) }))], anchor, 'Audio quality');
+    openMenu(L.map(f => ({ l: `${(f.ext || 'audio').toUpperCase()} · ${f.abr ? f.abr + ' kbps' : f.note || f.id}${f.size ? ' · ' + (f.size / 1048576).toFixed(1) + ' MB' : ''}`, i: 'check', on: cur === f.id, fn: () => cb(f.id) })), anchor, head);
   } catch (e) { toast('Quality options unavailable: ' + e.message); }
+}
+function qualityMenu(t, anchor) {
+  const cur = EX.get(t.c.videoId);
+  openMenu([{ l: 'Auto (use my setting)', i: 'check', on: !cur, fn: () => setFmt(t, null) }, ...KQP.slice(1).map(([k, l]) => ({ l, i: 'check', on: !cur && curQ() === k, fn: () => { S.sq = k; saveS(); SC.clear(); setFmt(t, null); } })), { sep: 1 }, { l: 'Choose exact format…', i: 'list', fn: () => fmtMenu(t, anchor, 'Audio quality', cur, id => setFmt(t, id)) }], anchor, 'Audio quality');
 }
 function setFmt(t, id) { id ? EX.set(t.c.videoId, id) : EX.delete(t.c.videoId); const c = Q[qi]; if (c && c.url === t.url) play(qi, A.currentTime || 0); toast('Audio quality updated'); }
 
@@ -118,11 +120,14 @@ function mkList(tracks, name) {
 }
 const _byId = byId; window.byId = id => LISTS[id] || _byId(id);
 window.qual = () => ({ label: '', hi: false, spec: '' });
-window.enrich = async () => 0; async function dl(t) {
+window.enrich = async () => 0; const DQP = [['ask', 'Ask every time'], ['best', 'Best available'], ['high', 'High'], ['std', 'Standard'], ['low', 'Data saver']];
+async function dl(t, how, anchor) {
   if (!t || !t.c.videoId) return;
+  const lv = how || EX.get(t.c.videoId) && 'f:' + EX.get(t.c.videoId) || S.dq || 'ask';
+  if (lv === 'ask') return openMenu([...DQP.slice(1).map(([k, l]) => ({ l, i: 'dl', fn: () => dl(t, k) })), { sep: 1 }, { l: 'Choose exact format…', i: 'list', fn: () => fmtMenu(t, anchor, 'Download quality', '', id => dl(t, 'f:' + id)) }], anchor, 'Download quality');
   toast('Preparing download… this can take a few seconds');
   try {
-    const r = await http(API_CONFIG.STREAM_API_URL, '/download', { method: 'POST', body: { url: ytu(t.c.videoId), format_id: EX.get(t.c.videoId) || 'best' }, ttl: 0 });
+    const r = await http(API_CONFIG.STREAM_API_URL, '/download', { method: 'POST', body: { url: ytu(t.c.videoId), format_id: lv.startsWith('f:') ? lv.slice(2) : composeFmt(lv) }, ttl: 0 });
     const a = document.createElement('a'); a.href = fix(r.download_url || r.stream_url); a.download = r.filename || ''; a.rel = 'noopener'; document.body.append(a); a.click(); a.remove();
     toast('Download started' + (r.source_quality ? ' · ' + r.source_quality : ''));
   } catch (e) { toast('Download failed: ' + (e.message === 'config' ? 'stream service is not configured.' : e.message)); }
@@ -139,14 +144,14 @@ window.resolveSrc = async t => {
   catch (e) {
     document.body.classList.remove('kbuf'); failN++;
     setTimeout(() => toast(e.message === 'config' ? 'Stream service is not configured yet.' : /bot-check|not a bot|sign in/i.test(e.message) ? 'YouTube is blocking the music server right now. Try again later.' : 'Can’t play this song: ' + String(e.message).slice(0, 140)), 60);
-    if (failN <= 2 && !/bot-check|not a bot|sign in|config/i.test(e.message)) setTimeout(() => { if (Q[qi] === t && Q[qi + 1]) nxt(1); }, 2200);   // skip an unplayable song (max 2 in a row)
+    if (S.skip && failN <= 2 && !/bot-check|not a bot|sign in|config/i.test(e.message)) setTimeout(() => { if (Q[qi] === t && Q[qi + 1]) nxt(1); }, 2200);   // skip an unplayable song (max 2 in a row)
     return '';
   }
 };
 A.addEventListener('playing', () => { failN = 0; document.body.classList.remove('kbuf'); });
 A.addEventListener('waiting', () => document.body.classList.add('kbuf'));
 let pf = '';   // warm the next song's stream URL shortly before the current one ends (starts instantly instead of ~6 s)
-A.addEventListener('timeupdate', () => { const d = A.duration, n = Q[qi + 1]; if (!d || !isFinite(d) || shuffle || !n || !n.c.videoId || d - A.currentTime > 50 || pf === n.url) return; pf = n.url; streamUrl(n.c.videoId).catch(() => { }); });
+A.addEventListener('timeupdate', () => { const d = A.duration, n = Q[qi + 1]; if (!S.pf || !d || !isFinite(d) || shuffle || !n || !n.c.videoId || d - A.currentTime > 50 || pf === n.url) return; pf = n.url; streamUrl(n.c.videoId).catch(() => { }); });
 let retried = '';
 A.onerror = () => {
   const t = Q[qi]; if (!A.getAttribute('src') || !t) return; dropSC(t.c.videoId);
@@ -183,7 +188,7 @@ window.autoNext = async () => { const n = Q.length; await fillRadio(Q[qi], true)
 /* queue: Now Playing / Up Next / Recommended + reorder/remove/play now */
 window.drawQ = function () {
   const el = $('#qq'); if (!Q.length) { el.innerHTML = '<div class="msg">Your queue is empty.</div>'; return; }
-  let g = '', h = `<div class="qtop"><b>Queue · ${Q.length}</b><button class="btn2" data-act="qclear">Clear Up Next</button></div>`;
+  let g = '', h = `<div class="qtop"><b>Queue · ${Q.length}</b><span><button class="btn2" data-act="qsave">Save as playlist</button> <button class="btn2" data-act="qclear">Clear</button></span></div>`;
   Q.forEach((t, i) => {
     const G = i < qi ? 'Played' : i === qi ? 'Now Playing' : t.rec ? 'Recommended' : 'Up Next';
     if (G !== g) { g = G; h += `<div class="qh">${G}</div>`; }
@@ -361,7 +366,7 @@ window.trackMenu = (t, p, anchor) => {
   const f = FAV.includes(t.url);
   openMenu([{ l: 'Play Next', i: 'next', fn: () => qAdd(t, true) }, { l: 'Add to Queue', i: 'qadd', fn: () => qAdd(t, false) }, { l: f ? 'Remove from Favourites' : 'Add to Favourites', i: f ? 'heartf' : 'heart', fn: () => toggleFav(t) }, { l: 'Add to Playlist…', i: 'plus', fn: () => pickPl(t) }, { l: 'Share', i: 'expand', fn: () => shareTrack(t) },
   p && p.custom ? { l: 'Remove from this playlist', i: 'trash', fn: () => rmFromPl(p, t) } : null, { sep: 1 },
-  { l: 'Start Radio', i: 'shuf', fn: () => { Q = [t]; play(0); } }, { l: 'Audio quality…', i: 'info', fn: () => qualityMenu(t, anchor) }, { l: 'Download', i: 'dl', fn: () => dl(t) }, t.c.artistId ? { l: 'Go to Artist', i: 'logo', fn: () => location.hash = '#/artist/' + enc(t.c.artistId) } : null, t.c.albumId ? { l: 'Go to Album', i: 'logo', fn: () => location.hash = '#/album/' + enc(t.c.albumId) } : null].filter(Boolean), anchor, title(t));
+  { l: 'Start Radio', i: 'shuf', fn: () => { Q = [t]; play(0); } }, { l: 'Audio quality…', i: 'info', fn: () => qualityMenu(t, anchor) }, { l: 'Download', i: 'dl', fn: () => dl(t, null, anchor) }, t.c.artistId ? { l: 'Go to Artist', i: 'logo', fn: () => location.hash = '#/artist/' + enc(t.c.artistId) } : null, t.c.albumId ? { l: 'Go to Album', i: 'logo', fn: () => location.hash = '#/album/' + enc(t.c.albumId) } : null].filter(Boolean), anchor, title(t));
 };
 
 /* ---------- routing / events ---------- */
@@ -429,25 +434,15 @@ window.route = function (keep) {
   if (m[1] === 'browse' || m[1] === 'mood' || m[1] === 'library') { RT++; SQ.io && SQ.io.disconnect(); (m[1] === 'browse' ? showBrowse() : m[1] === 'library' ? showLibrary() : showMood(decodeURIComponent(m[2] || ''), decodeURIComponent(m[3] || ''))); all('[data-k]').forEach(a => a.classList.toggle('act', a.dataset.k === view)); drawSide(); fin(); if (!keep) scrollTo(0, 0); return; }
   return _route(keep);
 };
-const kPlay = () => `<div class="sg"><h2>Playback</h2><div class="sc">${sr('Streaming quality', 'Higher quality uses more data', `<select class="sbox nmi" id="kq">${KQP.map(([k, l]) => `<option value="${k}" ${curQ() === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`)}${sr('Music taste', 'Used for Made For You on Home', '<button class="btn2" data-act="taste">Edit</button>')}${sr('Connection test', 'Checks both services', '<button class="btn2" data-act="diag">Run</button>')}</div></div>`;
-async function diag() {
-  const M = API_CONFIG.MUSIC_API_URL, S = API_CONFIG.STREAM_API_URL, out = [];
-  const chk = async (n, fn) => { const t0 = performance.now(); try { const x = await fn(); out.push(`✓ ${n} · ${Math.round(performance.now() - t0)} ms${x ? ' · ' + x : ''}`); } catch (e) { out.push(`✗ ${n}: ${e.message === 'Failed to fetch' ? 'cannot reach the service (offline, wrong URL or CORS)' : e.message}`); } };
-  const w = document.createElement('div'); w.id = 'wel'; w.innerHTML = '<div class="wc"><h1>Connection test</h1><pre class="dg">Running…</pre><button class="pill pri" id="dgx">Close</button></div>'; document.body.append(w); $('#dgx').onclick = () => w.remove();
-  await chk('Music API · health', () => http(M, '/health', { ttl: 0 }).then(r => 'v' + r.version));
-  await chk('Music API · search', () => mRaw('/search', { q: 'arijit singh', filter: 'songs', limit: 1 }, { ttl: 0 }).then(r => (r.data || []).length + ' result'));
-  await chk('Downloader · health', () => http(S, '/health', { ttl: 0 }).then(r => 'v' + r.version));
-  await chk('Downloader · formats', () => fmts('dQw4w9WgXcQ').then(l => l.length + ' audio formats'));
-  await chk('Downloader · stream', () => http(S, '/stream', { method: 'POST', body: { url: ytu('dQw4w9WgXcQ'), format_id: 'best' }, ttl: 0 }).then(r => r.ext + ' · ' + r.format_id));
-  w.querySelector('.dg').textContent = out.join('\n');
-}
-const _kp = window.kProfile; window.kProfile = () => _kp() + kPlay();
-V.addEventListener('change', e => { if (e.target.id === 'kq') { LS.set('koom.q', e.target.value); toast('Streaming quality: ' + KQP.find(q => q[0] === e.target.value)[1]); } });
 const _act2 = window.act;
 window.act = (a, c) => {
+  if (a === 'newpl') { newPlaylist().then(id => { if (id) location.hash = '#/p/' + id; }); return; }
+  if (a === 'qsave') { if (!Q.length) return toast('Queue is empty'); newPlaylist(Q.filter(t => t.c && t.c.videoId).map(t => t.url)); return; }
+  if (a === 'shclr') { J.set('koom.sh', []); toast('Search history cleared'); return route(1); }
+  if (a === 'kexp') return exportData();
+  if (a === 'kimp') return importData();
   if (a === 'qclear') { Q.length = qi + 1; drawQ(); return toast('Up Next cleared'); }
   if (a === 'libadd') { const k = c.dataset.lk, on = libToggle(k, { kind: k.slice(0, -1), id: c.dataset.id, title: c.dataset.t, sub: c.dataset.sub, thumb: c.dataset.th }); c.innerHTML = on ? ic('check', 18) + 'In Library' : ic('plus', 18) + 'Add to Library'; return toast(on ? 'Added to Library' : 'Removed from Library'); }
-  if (a === 'diag') return diag();
   if (a === 'taste') { const w = document.createElement('div'); w.id = 'wel'; document.body.append(w); return pickGenres(w, () => { w.classList.add('out'); setTimeout(() => w.remove(), 600); toast('Music taste saved'); }); }
   if (a === 'savename') { _act2(a, c); return refreshAv(); }
   _act2(a, c);
@@ -461,25 +456,88 @@ function qChips() {
   const q = EX.has(t.c.videoId) ? 'Custom' : { best: 'Auto', high: 'High', std: 'Standard', low: 'Data saver' }[curQ()];
   const kb = i && ITAG[i.fmt], main = i ? `${(i.ext || 'audio').toUpperCase()}${kb ? ' · ~' + kb + ' kbps' : ''}` : 'Loading…';
   $('#bq').textContent = i ? (i.ext || 'audio').toUpperCase() + (kb ? ' ' + kb + 'k' : '') : '…';
-  $('#nbd').innerHTML = `<span class="chip hi">${q}</span><span class="chip">${main}</span><span class="chip">Tap to change</span>`;
+  $('#nbd').innerHTML = `<span class="qchip">${q}${i ? ' · ' + (i.ext || 'audio').toUpperCase() + (kb ? ' ' + kb + 'k' : '') : ''}</span>`;
 }
 const _ui = window.ui; window.ui = function () { const r = _ui.apply(this, arguments); qChips(); return r; };
+{ const vr = document.querySelector('.vrow'); if (vr) vr.append($('#nbd')); }
 $('#bq').onclick = e => Q[qi] && qualityMenu(Q[qi], e.currentTarget); $('#nbd').onclick = e => Q[qi] && qualityMenu(Q[qi], e.currentTarget);
 const LIB = () => J.get('koom.lib', { albums: [], artists: [], playlists: [] }), inLib = (k, id) => (LIB()[k] || []).some(x => x.id === id);
 function libToggle(k, it) { const L = LIB(); L[k] = L[k] || []; const i = L[k].findIndex(x => x.id === it.id); i >= 0 ? L[k].splice(i, 1) : L[k].unshift(it); J.set('koom.lib', L); return i < 0; }
 function libBtn(k, id, title, sub, thumb) { return `<button class="pill" data-act="libadd" data-lk="${k}" data-id="${esc(id)}" data-t="${esc(title)}" data-sub="${esc(sub)}" data-th="${esc(thumb)}">${inLib(k, id) ? ic('check', 18) + 'In Library' : ic('plus', 18) + 'Add to Library'}</button>`; }
 function showLibrary() {
   view = 'library'; const L = LIB(), my = RT, sec = (t, a) => a.length ? sh(t) + `<div class="hr">${a.map(x => cardX(x)).join('')}</div>` : '';
-  setV(`<h1 class="lt">Library</h1><div class="bgrid"><a class="bt t1" href="#/fav">Liked Songs<small>${FAV.length} songs</small></a><a class="bt t2" href="#/history">Recently Played<small>${HIST.length} songs</small></a></div>` + sec('Albums', L.albums) + sec('Artists', L.artists) + sec('Playlists', L.playlists) + (L.albums.length + L.artists.length + L.playlists.length ? '' : '<div class="msg">Albums, artists and playlists you add will appear here.</div>'), my);
+  setV(`<h1 class="lt">Library</h1><div class="bgrid"><a class="bt t1" href="#/fav">Liked Songs<small>${FAV.length} songs</small></a><a class="bt t2" href="#/history">Recently Played<small>${HIST.length} songs</small></a></div>` + myPl() + sec('Albums', L.albums) + sec('Artists', L.artists) + sec('Saved playlists', L.playlists) + '', my);
 }
 async function shareTrack(t) { const url = 'https://music.youtube.com/watch?v=' + t.c.videoId; try { if (navigator.share) await navigator.share({ title: title(t) + ' — ' + artist(t), url }); else { await navigator.clipboard.writeText(url); toast('Link copied'); } } catch (e) { } }
+
+/* ---------- lyrics: wrap-safe word fill + smoother animation ---------- */
+window.drawLy = function () {
+  const t = Q[qi]; if (!t) return; const s = t.lyr || '', b = $('#ly'); L = lrc(s); ai = -2;
+  if (!s) { b.innerHTML = '<div class="msg">Lyrics aren\'t available for this song.</div>'; return; }
+  if (L.length > 1) {
+    if (L[0].t > 6) L.unshift({ t: 0, tx: '', w: [] });
+    if (S.lyAnim) L.forEach((l, i) => {   // untimed lines: spread the words over the line's duration (a horizontal sweep breaks on wrapped lines)
+      if (!l.tx || l.w.length) return; const nx = L[i + 1] ? L[i + 1].t : l.t + 4, span = Math.max(.4, (nx - l.t) * .9), sp = /\s/.test(l.tx);
+      const ws = sp ? l.tx.split(/\s+/) : Array.from(l.tx), tot = ws.join('').length || 1; let c = 0;
+      l.w = ws.map((w, n) => { const at = l.t + span * (c / tot); c += w.length; return [at, w + (sp && n < ws.length - 1 ? ' ' : '')]; });
+    });
+    b.innerHTML = L.map((l, i) => `<p id="l${i}" data-t="${l.t}" class="${!l.tx ? 'gap' : ''}">${!l.tx ? '<i></i><i></i><i></i>' : (l.w.length ? l.w.map(w => `<span class="wd" data-t="${w[0]}">${esc(w[1])}</span>`).join('') : esc(l.tx))}</p>`).join('');
+  } else { L = []; b.innerHTML = `<p class="plain">${esc(s)}</p>`; }
+  lyStart();
+};
+
+/* ---------- dialogs, playlists in Library, data export ---------- */
+function kAsk(title, ph = '', val = '') {
+  return new Promise(res => {
+    const w = document.createElement('div'); w.className = 'kdlg';
+    w.innerHTML = `<div class="kbox"><h3>${esc(title)}</h3><input maxlength="60" placeholder="${esc(ph)}" value="${esc(val)}" aria-label="${esc(title)}"><div class="kbtn"><button class="btn2" data-c>Cancel</button><button class="pill pri" data-o>Save</button></div></div>`;
+    document.body.append(w); const i = w.querySelector('input'); i.focus(); i.select();
+    const done = v => { w.remove(); res(v); };
+    w.onclick = e => { if (e.target === w || e.target.closest('[data-c]')) done(null); else if (e.target.closest('[data-o]')) done(i.value.trim() || null); };
+    i.onkeydown = e => { if (e.key === 'Enter') done(i.value.trim() || null); else if (e.key === 'Escape') done(null); };
+  });
+}
+async function newPlaylist(urls = []) {
+  const n = await kAsk('New playlist', 'Playlist name'); if (!n) return null;
+  const id = 'u' + Date.now().toString(36); UPL.push({ id, name: n, urls }); J.set('ml.pl', UPL); persist(); buildU(); drawSide(); toast('Playlist created'); return id;
+}
+function myPl() {
+  const t = UPL.map(p => { const T = p.urls.map(u => TM.get(u) && TM.get(u).t).filter(Boolean); return { kind: 'p', id: p.id, title: p.name, sub: p.urls.length + ' songs', thumb: T[0] ? cover(T[0]) : '' }; });
+  return sh('My Playlists') + `<div class="hr"><div class="card k newpl" tabindex="0" role="button" data-act="newpl"><div class="art"><div class="plus">+</div></div><b>New Playlist</b><small>Create</small></div>${t.map(x => cardX(x)).join('')}</div>`;
+}
+const exportData = () => { const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^(ml|koom)\./.test(k)) o[k] = localStorage.getItem(k); } const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(o)], { type: 'application/json' })); a.download = 'koom-backup.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+function importData() { const f = document.createElement('input'); f.type = 'file'; f.accept = '.json,application/json'; f.onchange = async () => { try { const o = JSON.parse(await f.files[0].text()); Object.entries(o).forEach(([k, v]) => { if (/^(ml|koom)\./.test(k)) localStorage.setItem(k, v); }); toast('Backup restored'); setTimeout(() => location.reload(), 700); } catch (e) { toast('That file is not a KOOM backup'); } }; f.click(); }
+
+/* ---------- Settings: organised sections ---------- */
+const sel = (k, opts, cur) => `<select class="sel" data-kq="${k}" aria-label="${k}">${opts.map(([v, l]) => `<option value="${v}" ${String(cur) === String(v) ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+const FMTS = [['', 'Auto'], ['m4a', 'M4A (AAC)'], ['webm', 'WebM (Opus)']];
+const kPlay = () => `<div class="sg"><h2>Streaming</h2><div class="sc">${sr('Streaming quality', 'Higher quality uses more data', sel('sq', KQP, curQ()))}${sr('Audio format', 'M4A plays on every device, WebM (Opus) is smaller', sel('sf', FMTS, S.sf || ''))}${sr('Pre-load next song', 'The next song starts instantly', sw('pf'))}${sr('Skip unplayable songs', 'Moves on if a song can’t be played', sw('skip'))}${sr('Music taste', 'Used for Made For You on Home', '<button class="btn2" data-act="taste">Edit</button>')}</div></div>
+<div class="sg"><h2>Downloads</h2><div class="sc">${sr('Download quality', 'Used by every Download button', sel('dq', DQP, S.dq || 'ask'))}${sr('Audio format', 'Same setting as streaming', sel('sf', FMTS, S.sf || ''))}</div></div>`;
+const _kp = window.kProfile; window.kProfile = () => _kp() + kPlay();
+const _showSet = window.showSet;
+window.showSet = function () {
+  _showSet();
+  const g = [...V.querySelectorAll(':scope > .sg')];     // 0 Profile, 1 Streaming, 2 Downloads, 3 Appearance, 4 Audio, 5 Lyrics, 6 Storage, 7 Shortcuts, 8 About
+  if (g.length < 9) return;
+  g[4].querySelector('h2').textContent = 'Playback'; g[6].querySelector('h2').textContent = 'Library & data';
+  g[3].querySelector('.sc').insertAdjacentHTML('beforeend', sr('Reduce motion', 'Fewer animations', sw('rm')));
+  g[6].querySelector('.sc').insertAdjacentHTML('beforeend', sr('Search history', J.get('koom.sh', []).length + ' searches', '<button class="btn2" data-act="shclr">Clear</button>') + sr('Backup', 'Save or restore your library, playlists and settings', '<span><button class="btn2" data-act="kexp">Export</button> <button class="btn2" data-act="kimp">Import</button></span>'));
+  const order = [g[0], g[3], g[4], g[1], g[2], g[5], g[6], g[7], g[8]], ids = ['profile', 'look', 'play', 'stream', 'dl', 'lyr', 'data', 'keys', 'about'];
+  order.forEach((e, i) => { e.id = 'st-' + ids[i]; V.append(e); });
+  const jump = [['profile', 'Profile'], ['look', 'Appearance'], ['play', 'Playback'], ['stream', 'Streaming'], ['dl', 'Downloads'], ['lyr', 'Lyrics'], ['data', 'Data'], ['about', 'About']];
+  V.querySelector('h1').insertAdjacentHTML('afterend', `<nav class="sjump" aria-label="Settings sections">${jump.map(([k, l]) => `<button data-jump="st-${k}">${l}</button>`).join('')}</nav>`);
+};
+V.addEventListener('click', e => { const b = e.target.closest('[data-jump]'); if (b) { const t = document.getElementById(b.dataset.jump); t && t.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
+V.addEventListener('change', e => { const s = e.target.closest('[data-kq]'); if (!s) return; S[s.dataset.kq] = s.value; saveS(); SC.clear(); V.querySelectorAll(`[data-kq="${s.dataset.kq}"]`).forEach(x => x.value = s.value); toast('Saved'); });
+const _apply = window.applySet; window.applySet = function () { _apply(); document.body.classList.toggle('rm', !!S.rm); };
 
 /* ---------- boot ---------- */
 (async function koomBoot() {
   document.title = `${APP.name} — ${APP.tagline}`; window.SITE = APP.name; all('.site').forEach(e => e.textContent = APP.name);
   const o = J.get('koom.tracks', {}); for (const [u, c] of Object.entries(o)) TM.set(u, { t: { c, url: u, tags: {}, alt: '' }, p: null });
   const mt = document.createElement('header'); mt.className = 'mtop'; mt.innerHTML = `<div><b>${APP.name}</b><small>${APP.tagline}</small></div><a class="av" href="#/settings" aria-label="Profile"></a>`; V.parentNode.insertBefore(mt, V);
+  if (S.pf === undefined) S.pf = 1; if (S.skip === undefined) S.skip = 1; saveS();
   P = []; buildU(); applySet(); $('#bt').textContent = 'Not Playing';
   await welcome(); refreshAv(); route();
 })();
-$('#ndl').onclick = () => dl(Q[qi]);
+$('#ndl').onclick = e => dl(Q[qi], null, e.currentTarget);
