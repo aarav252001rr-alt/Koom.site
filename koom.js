@@ -345,7 +345,7 @@ const contact = () => real(CREATOR.email) ? `<a href="mailto:${esc(CREATOR.email
 const LEGAL = {
   privacy: ['Privacy Policy', [
     ['What KOOM stores', `${APP.name} has no accounts. Everything it remembers stays in your browser’s local storage on your device: the display name you enter, your theme, language and playback settings, liked songs, your own playlists, recently played songs (up to 50), and a small cache of song details (title, artist, artwork link) needed to show those lists.`],
-    ['What leaves your device', 'To work, KOOM sends requests to two services configured by the operator: a music data service (your search text, search suggestions, and the IDs of songs, artists, albums and playlists you open) and a stream service (the YouTube link of a song you choose to play). These requests necessarily include your IP address and browser details, and an API key. Your display name, liked songs, playlists and listening history are not sent to either service. Artwork is loaded from third-party image servers (such as Google and YouTube), and fonts are loaded from Google Fonts, which also see your IP address.'],
+    ['What leaves your device', 'To work, KOOM sends requests to two services configured by the operator: a music data service (your search text, search suggestions, and the IDs of songs, artists, albums and playlists you open) and a stream service (the YouTube link of a song you choose to play). These requests necessarily include your IP address and browser details, and an API key. Your display name, liked songs, playlists and listening history are not sent to either service. If you choose English lyrics, the lyric text of that song is sent to Google Translate (translate.googleapis.com) and the result is kept on your device. Hinglish (Roman) lyrics are converted entirely on your device. Artwork is loaded from third-party image servers (such as Google and YouTube), and fonts are loaded from Google Fonts, which also see your IP address.'],
     ['Cookies and analytics', 'KOOM itself sets no cookies and includes no analytics or advertising tools. Third-party services above may log requests under their own policies.'],
     ['Retention and your choices', 'Local data stays until you clear it. You can change your name, clear recently played, remove liked songs or reset settings in Settings, or erase everything by clearing this site’s data in your browser.'],
     ['Children', 'KOOM is not directed to children under 13 and does not knowingly collect personal information from anyone.'],
@@ -457,6 +457,7 @@ function qChips() {
   const kb = i && ITAG[i.fmt], main = i ? `${(i.ext || 'audio').toUpperCase()}${kb ? ' · ~' + kb + ' kbps' : ''}` : 'Loading…';
   $('#bq').textContent = i ? (i.ext || 'audio').toUpperCase() + (kb ? ' ' + kb + 'k' : '') : '…';
   $('#nbd').innerHTML = `<span class="qchip">${q}${i ? ' · ' + (i.ext || 'audio').toUpperCase() + (kb ? ' ' + kb + 'k' : '') : ''}</span>`;
+  npMeta();
 }
 const _ui = window.ui; window.ui = function () { const r = _ui.apply(this, arguments); qChips(); return r; };
 { const vr = document.querySelector('.vrow'); if (vr) vr.append($('#nbd')); }
@@ -471,20 +472,117 @@ function showLibrary() {
 async function shareTrack(t) { const url = 'https://music.youtube.com/watch?v=' + t.c.videoId; try { if (navigator.share) await navigator.share({ title: title(t) + ' — ' + artist(t), url }); else { await navigator.clipboard.writeText(url); toast('Link copied'); } } catch (e) { } }
 
 /* ---------- lyrics: wrap-safe word fill + smoother animation ---------- */
+/* ---------- lyrics languages ---------- */
+/* Devanagari + Gurmukhi -> Hinglish (rule based, offline) */
+const DVC = { 'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'n', 'च': 'ch', 'छ': 'chh', 'ज': 'j', 'झ': 'jh', 'ञ': 'n', 'ट': 't', 'ठ': 'th', 'ड': 'd', 'ढ': 'dh', 'ण': 'n', 'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n', 'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm', 'य': 'y', 'र': 'r', 'ल': 'l', 'ळ': 'l', 'व': 'v', 'श': 'sh', 'ष': 'sh', 'स': 's', 'ह': 'h' };
+const DVN = { 'क': 'q', 'ख': 'kh', 'ग': 'g', 'ज': 'z', 'ड': 'r', 'ढ': 'rh', 'फ': 'f' };
+const DVI = { 'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo', 'ऋ': 'ri', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au', 'ऑ': 'o', 'ऍ': 'e' };
+const DVM = { 'ा': 'aa', 'ि': 'i', 'ी': 'i', 'ु': 'u', 'ू': 'oo', 'ृ': 'ri', 'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au', 'ॉ': 'o', 'ॅ': 'e' };
+const isNasal = c => c === 'ं' || c === 'ँ';
+function romanWord(w) {
+  const ch = [...w], toks = []; let i = 0;
+  while (i < ch.length) {
+    const c = ch[i];
+    if (DVC[c]) {
+      let r = DVC[c]; i++; if (ch[i] === '़') { r = DVN[c] || r; i++; }
+      const t = { c: r, v: null, vir: false };
+      if (ch[i] === '्') { t.vir = true; i++; } else if (DVM[ch[i]]) { t.v = DVM[ch[i]]; i++; }
+      if (isNasal(ch[i])) { t.nas = true; i++; } else if (ch[i] === 'ः') { t.h = true; i++; }
+      toks.push(t);
+    } else if (DVI[c]) {
+      const t = { c: '', v: DVI[c], ex: true }; i++;
+      if (isNasal(ch[i])) { t.nas = true; i++; } else if (ch[i] === 'ः') { t.h = true; i++; }
+      toks.push(t);
+    } else if (c === '।' || c === '॥' || c === 'ऽ' || c === '\u200d' || c === '\u200c') i++;
+    else { toks.push({ raw: c }); i++; }
+  }
+  const syl = []; toks.forEach((t, k) => { if (!('raw' in t)) syl.push(k); });
+  let prevVowel = false, out = '';
+  syl.forEach((k, p) => {
+    const t = toks[k], last = p === syl.length - 1, nx = toks[syl[p + 1]];
+    let v = t.v;
+    if (t.v === null && !t.vir && !t.ex) {                    // inherent "a": keep or drop (schwa deletion)
+      let keep = true;
+      if (last) keep = false;
+      else if (p > 0 && prevVowel && !toks[syl[p - 1]].nas && (nx.v !== null || nx.ex) && !t.nas) keep = false;
+      v = keep ? 'a' : '';
+    }
+    if (v === 'aa' && last && !t.nas) v = 'a';               // mera, tera
+    if (v === 'oo' && last && !t.nas) v = 'u';
+    out += t.c + (t.vir ? '' : v || '');
+    if (t.nas) out += 'n'; if (t.h) out += 'h';
+    prevVowel = !t.vir && !!(v);
+    if (t.vir) prevVowel = false;
+    // raw chars between syllables
+    for (let q = k + 1; q < (syl[p + 1] ?? toks.length); q++) if ('raw' in toks[q]) out += toks[q].raw;
+  });
+  for (let q = 0; q < (syl[0] ?? toks.length); q++) if ('raw' in toks[q]) out = toks[q].raw + out;
+  return out;
+}
+function roman(str) {
+  if (!/[\u0900-\u097F\u0A00-\u0A7F]/.test(str)) return str;
+  let s = ''; for (const ch of str) { const c = ch.codePointAt(0); s += (c >= 0x0A01 && c <= 0x0A4D) ? String.fromCodePoint(c - 0x100) : c === 0x0A70 ? 'ं' : c === 0x0A71 ? '' : ch; }
+  return s.replace(/[\u0900-\u097F]+/g, romanWord).replace(/\s+/g, ' ').trim();
+}
+
+const TR_URL = () => API_CONFIG.TRANSLATE_URL || 'https://translate.googleapis.com/translate_a/single';
+async function trOne(line) { const r = await fetch(`${TR_URL()}?client=gtx&sl=auto&tl=en&dt=t&q=${enc(line)}`); if (!r.ok) throw new Error('tr'); const d = await r.json(); return (d[0] || []).map(x => x[0]).join('').replace(/\n+$/, ''); }
+async function translateLines(lines) {
+  const out = [];
+  for (let i = 0; i < lines.length; i += 40) {
+    const part = lines.slice(i, i + 40), r = await fetch(`${TR_URL()}?client=gtx&sl=auto&tl=en&dt=t&q=${enc(part.join('\n'))}`); if (!r.ok) throw new Error('tr');
+    const d = await r.json(); let rows = (d[0] || []).map(x => x[0]).join('').replace(/\n$/, '').split('\n');
+    if (rows.length !== part.length) rows = await Promise.all(part.map(l => l.trim() ? trOne(l) : ''));   // lines got merged: translate one by one
+    out.push(...rows);
+  }
+  return out;
+}
+const lyRows = t => { const L0 = lrc(t.lyr || ''); return L0.length > 1 ? L0.map(l => l.tx) : (t.lyr || '').split('\n'); };
+async function ensureEn(t) {
+  if (!t || !t.lyr || t.lyEn || t.lyBusy) return; const key = 'koom.tr.' + t.c.videoId, c = J.get(key, null);
+  if (c) { t.lyEn = c; return Q[qi] === t && drawLy(); }
+  t.lyBusy = 1;
+  try { t.lyEn = await translateLines(lyRows(t)); J.set(key, t.lyEn); } catch (e) { toast('English lyrics are unavailable right now'); }
+  t.lyBusy = 0; if (Q[qi] === t) drawLy();
+}
 window.drawLy = function () {
   const t = Q[qi]; if (!t) return; const s = t.lyr || '', b = $('#ly'); L = lrc(s); ai = -2;
-  if (!s) { b.innerHTML = '<div class="msg">Lyrics aren\'t available for this song.</div>'; return; }
+  if (!s) { b.innerHTML = '<div class="msg">Lyrics aren\'t available for this song.</div>'; updLine(); lmSync(); return; }
+  const mode = S.lyMode || 'orig', dual = !!S.lyDual && mode !== 'orig';
+  if (mode === 'en') ensureEn(t);
+  const conv = (tx, i) => mode === 'roman' ? roman(tx) : mode === 'en' ? ((t.lyEn && t.lyEn[i]) || tx) : tx;
   if (L.length > 1) {
-    if (L[0].t > 6) L.unshift({ t: 0, tx: '', w: [] });
-    if (S.lyAnim) L.forEach((l, i) => {   // untimed lines: spread the words over the line's duration (a horizontal sweep breaks on wrapped lines)
-      if (!l.tx || l.w.length) return; const nx = L[i + 1] ? L[i + 1].t : l.t + 4, span = Math.max(.4, (nx - l.t) * .9), sp = /\s/.test(l.tx);
-      const ws = sp ? l.tx.split(/\s+/) : Array.from(l.tx), tot = ws.join('').length || 1; let c = 0;
-      l.w = ws.map((w, n) => { const at = l.t + span * (c / tot); c += w.length; return [at, w + (sp && n < ws.length - 1 ? ' ' : '')]; });
+    if (L[0].t > 6) { L.unshift({ t: 0, tx: '', w: [] }); if (t.lyEn) t.lyEn = ['', ...t.lyEn]; }
+    L.forEach((l, i) => {
+      l.main = dual ? l.tx : conv(l.tx, i); l.sub = dual ? conv(l.tx, i) : '';
+      if (l.main !== l.tx) l.w = [];                          // timings belong to the original words
+      if (S.lyAnim && l.main && !l.w.length) {                // spread words over the line (a horizontal sweep breaks on wrapped lines)
+        const nx = L[i + 1] ? L[i + 1].t : l.t + 4, span = Math.max(.4, (nx - l.t) * .9), sp = /\s/.test(l.main), ws = sp ? l.main.split(/\s+/) : Array.from(l.main), tot = ws.join('').length || 1; let c = 0;
+        l.w = ws.map((w, n) => { const at = l.t + span * (c / tot); c += w.length; return [at, w + (sp && n < ws.length - 1 ? ' ' : '')]; });
+      }
     });
-    b.innerHTML = L.map((l, i) => `<p id="l${i}" data-t="${l.t}" class="${!l.tx ? 'gap' : ''}">${!l.tx ? '<i></i><i></i><i></i>' : (l.w.length ? l.w.map(w => `<span class="wd" data-t="${w[0]}">${esc(w[1])}</span>`).join('') : esc(l.tx))}</p>`).join('');
-  } else { L = []; b.innerHTML = `<p class="plain">${esc(s)}</p>`; }
-  lyStart();
+    b.innerHTML = L.map((l, i) => `<p id="l${i}" data-t="${l.t}" class="${!l.tx ? 'gap' : ''}">${!l.tx ? '<i></i><i></i><i></i>' : (l.w.length ? l.w.map(w => `<span class="wd" data-t="${w[0]}">${esc(w[1])}</span>`).join('') : esc(l.main))}${l.sub ? `<small class="sub">${esc(l.sub)}</small>` : ''}</p>`).join('');
+  } else {
+    L = []; const rows = s.split('\n'); b.innerHTML = `<p class="plain">${rows.map((r, i) => esc(dual ? r : conv(r, i)) + (dual ? '<small class="sub">' + esc(conv(r, i)) + '</small>' : '')).join('<br>')}</p>`;
+  }
+  lyStart(); updLine(); lmSync();
 };
+/* one-line lyric above the progress bar (mirrors the active line of the full lyrics) */
+function updLine() {
+  const el = $('#nplyt'), box = $('#nplyl'); if (!el) return; const t = Q[qi];
+  if (!t || !t.lyr || !L.length) { box.hidden = true; return; } box.hidden = false;
+  const p = ai >= 0 ? document.getElementById('l' + ai) : null;
+  if (!p) { el.innerHTML = '<span class="gp">♪</span>'; return; }
+  if (p.classList.contains('gap')) { el.innerHTML = '<span class="gp">♪</span>'; return; }
+  const c = p.cloneNode(true); c.querySelectorAll('.sub').forEach(x => x.remove()); el.innerHTML = c.innerHTML;
+}
+const _lyA = window.lyActive; window.lyActive = function (sc) { _lyA(sc); updLine(); };
+const _lyF = window.lyFrame; window.lyFrame = function () {
+  _lyF();
+  if (ai >= 0) { const src = document.querySelectorAll('#l' + ai + ' .wd'), dst = document.querySelectorAll('#nplyt .wd'); dst.forEach((d, k) => src[k] && d.classList.toggle('w', src[k].classList.contains('w'))); }
+};
+const LMODES = [['orig', 'Original'], ['roman', 'Hinglish'], ['en', 'English']];
+function lmSync() { const r = $('#lymodes'); if (!r) return; r.querySelectorAll('[data-lm]').forEach(b => { const k = b.dataset.lm; b.classList.toggle('on', k === 'dual' ? !!S.lyDual : k === (S.lyMode || 'orig')); }); r.classList.toggle('busy', !!(Q[qi] && Q[qi].lyBusy)); }
 
 /* ---------- dialogs, playlists in Library, data export ---------- */
 function kAsk(title, ph = '', val = '') {
@@ -521,6 +619,7 @@ window.showSet = function () {
   if (g.length < 9) return;
   g[4].querySelector('h2').textContent = 'Playback'; g[6].querySelector('h2').textContent = 'Library & data';
   g[3].querySelector('.sc').insertAdjacentHTML('beforeend', sr('Reduce motion', 'Fewer animations', sw('rm')));
+  g[5].querySelector('.sc').insertAdjacentHTML('afterbegin', sr('Lyrics language', 'Hindi and Punjabi lyrics can be shown in Hinglish (Roman) or translated to English', sel('lyMode', [['orig', 'Original'], ['roman', 'Hinglish (Roman)'], ['en', 'English (translated)']], S.lyMode || 'orig')) + sr('Show original with translation', 'Both lines together', sw('lyDual')));
   g[6].querySelector('.sc').insertAdjacentHTML('beforeend', sr('Search history', J.get('koom.sh', []).length + ' searches', '<button class="btn2" data-act="shclr">Clear</button>') + sr('Backup', 'Save or restore your library, playlists and settings', '<span><button class="btn2" data-act="kexp">Export</button> <button class="btn2" data-act="kimp">Import</button></span>'));
   const order = [g[0], g[3], g[4], g[1], g[2], g[5], g[6], g[7], g[8]], ids = ['profile', 'look', 'play', 'stream', 'dl', 'lyr', 'data', 'keys', 'about'];
   order.forEach((e, i) => { e.id = 'st-' + ids[i]; V.append(e); });
@@ -528,8 +627,55 @@ window.showSet = function () {
   V.querySelector('h1').insertAdjacentHTML('afterend', `<nav class="sjump" aria-label="Settings sections">${jump.map(([k, l]) => `<button data-jump="st-${k}">${l}</button>`).join('')}</nav>`);
 };
 V.addEventListener('click', e => { const b = e.target.closest('[data-jump]'); if (b) { const t = document.getElementById(b.dataset.jump); t && t.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
-V.addEventListener('change', e => { const s = e.target.closest('[data-kq]'); if (!s) return; S[s.dataset.kq] = s.value; saveS(); SC.clear(); V.querySelectorAll(`[data-kq="${s.dataset.kq}"]`).forEach(x => x.value = s.value); toast('Saved'); });
+V.addEventListener('change', e => { const s = e.target.closest('[data-kq]'); if (!s) return; S[s.dataset.kq] = s.value; saveS(); SC.clear(); if (/^ly/.test(s.dataset.kq)) { if (s.value === 'orig') S.lyDual = 0; drawLy(); } V.querySelectorAll(`[data-kq="${s.dataset.kq}"]`).forEach(x => x.value = s.value); toast('Saved'); });
 const _apply = window.applySet; window.applySet = function () { _apply(); document.body.classList.toggle('rm', !!S.rm); };
+
+/* ---------- Now Playing (Apple-style) ---------- */
+const SVG = {
+  quote: '<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M4 3h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-7l-5 4v-4H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm4.2 4.2c-1 .6-1.7 1.7-1.7 3.1h2.2v2.4H5.9v-2.1c0-2 .9-3.4 2.3-4.2zm5.6 0c-1 .6-1.7 1.7-1.7 3.1h2.2v2.4h-2.8v-2.1c0-2 .9-3.4 2.3-4.2z" fill-rule="evenodd"/></svg>',
+  phones: '<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M12 3a9 9 0 0 0-9 9v6a3 3 0 0 0 3 3h1.5a1 1 0 0 0 1-1v-6.5a1 1 0 0 0-1-1H5V12a7 7 0 0 1 14 0v1.5h-2.5a1 1 0 0 0-1 1V20a1 1 0 0 0 1 1H18a3 3 0 0 0 3-3v-6a9 9 0 0 0-9-9z"/></svg>',
+  list: '<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><circle cx="4.5" cy="6.5" r="1.7"/><circle cx="4.5" cy="12" r="1.7"/><circle cx="4.5" cy="17.5" r="1.7"/><rect x="8.5" y="5.3" width="13" height="2.4" rx="1.2"/><rect x="8.5" y="10.8" width="13" height="2.4" rx="1.2"/><rect x="8.5" y="16.3" width="13" height="2.4" rx="1.2"/></svg>',
+  rew: '<svg viewBox="0 0 24 24" width="50" height="50" fill="currentColor"><path d="M11 18V6l-8.5 6zM21.5 18V6L13 12z"/></svg>',
+  fwd: '<svg viewBox="0 0 24 24" width="50" height="50" fill="currentColor"><path d="M13 6v12l8.5-6zM2.5 6v12L11 12z"/></svg>',
+  chev: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>',
+  spk: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/></svg>',
+  spk2: '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+};
+function buildNP() {
+  const npl = document.querySelector('.npl'), nc = $('#nc'); if (!npl || document.getElementById('npfrom')) return;
+  const wrap = document.createElement('div'); wrap.className = 'nccov'; nc.replaceWith(wrap); wrap.append(nc);
+  wrap.insertAdjacentHTML('beforeend', '<div class="npinfo" id="npinfo" role="button" tabindex="0"></div>');
+  npl.insertAdjacentHTML('afterbegin', '<div class="npfrom"><i class="grab"></i><span id="npfrom"></span></div>');
+  npl.querySelector('.skr').insertAdjacentHTML('beforebegin', `<button class="nplyl" id="nplyl" hidden aria-label="Open lyrics"><span class="nplyt" id="nplyt"></span>${SVG.chev}</button>`);
+  const vr = npl.querySelector('.vrow'); vr.querySelector('.vi').innerHTML = SVG.spk; vr.insertAdjacentHTML('beforeend', `<span class="vi2">${SVG.spk2}</span>`);
+  npl.querySelector('.ctl .pv').innerHTML = SVG.rew; npl.querySelector('.ctl .nx').innerHTML = SVG.fwd;
+  npl.insertAdjacentHTML('beforeend', `<div class="npbot"><button class="ib npb" id="npbl" aria-label="Lyrics">${SVG.quote}</button><div class="pill2"><button id="npq" aria-label="Audio quality">${SVG.phones}</button><i></i><button id="npdl" aria-label="Download">${ic('dl', 24)}</button></div><button class="ib npb" id="npqq" aria-label="Up next">${SVG.list}</button></div><div class="npdev" id="npdev"></div>`);
+  document.querySelector('.segrow').insertAdjacentHTML('afterend', `<div class="lymodes" id="lymodes">${LMODES.map(([k, l]) => `<button data-lm="${k}">${l}</button>`).join('')}<button data-lm="dual" title="Show original and translation together">Both</button></div><div class="qmode" id="qmode" hidden><button class="ib" id="qshf" aria-label="Shuffle">${ic('shuf', 22)}</button><button class="ib" id="qrpt" aria-label="Repeat">${ic('rep', 22)}</button><button class="btn2" data-act="qsave">Save as playlist</button><button class="btn2" data-act="qclear">Clear</button></div>`);
+  const np = $('#np');
+  $('#npbl').onclick = $('#nplyl').onclick = () => { np.classList.add('lyf'); seg(true); };
+  $('#npqq').onclick = () => { np.classList.add('lyf'); seg(false); };
+  $('#npq').onclick = $('#npinfo').onclick = e => Q[qi] && qualityMenu(Q[qi], e.currentTarget);
+  $('#npdl').onclick = e => dl(Q[qi], null, e.currentTarget);
+  $('#qshf').onclick = () => { $('.ctl .shf').click(); setTimeout(() => $('#qshf').className = 'ib ' + ($('.ctl .shf').classList.contains('on') ? 'on' : ''), 30); };
+  $('#qrpt').onclick = () => { $('.ctl .rpt').click(); setTimeout(() => { $('#qrpt').innerHTML = $('.ctl .rpt').innerHTML; $('#qrpt').className = 'ib ' + ($('.ctl .rpt').classList.contains('on') ? 'on' : ''); }, 30); };
+  $('#lymodes').onclick = e => {
+    const b = e.target.closest('[data-lm]'); if (!b) return; const k = b.dataset.lm;
+    if (k === 'dual') S.lyDual = S.lyDual ? 0 : 1; else { S.lyMode = k; if (k === 'orig') S.lyDual = 0; } saveS(); drawLy();
+  };
+  $('.npl .skr .sk').addEventListener('input', e => { const d = A.duration; if (d) $('.npl .dur').textContent = '-' + mm(d - e.target.value / 1000 * d); });
+  A.addEventListener('timeupdate', () => { if (!drag && A.duration) $('.npl .dur').textContent = '-' + mm(A.duration - A.currentTime); });
+}
+function npMeta() {
+  const t = Q[qi]; if (!t || !$('#npfrom')) return; const i = QINFO.get(t.c.videoId), n = Q[qi + 1], kb = i && ITAG[i.fmt];
+  const pl = KPL && KPL.name ? KPL : curPl; $('#npfrom').textContent = pl && pl.name ? 'Playing from ' + pl.name : '';
+  $('#npinfo').innerHTML = i ? `${i.ext === 'm4a' ? 'AAC' : i.ext === 'webm' ? 'Opus' : (i.ext || 'Audio').toUpperCase()}${kb ? ' · ~' + kb + ' kbps' : ''} · Stereo` + (n ? `<br>Up next · ${esc(title(n))}` : '') : '';
+  $('#npdev').textContent = (NAME() ? NAME() + '’s ' : '') + (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ? 'Phone' : 'Device');
+  $('#ndl').innerHTML = $('#ndl').innerHTML; $('#npdl').innerHTML = ic('dl', 24);
+}
+let KPL = null; const _pf = window.playFrom; window.playFrom = function (p) { KPL = p; return _pf.apply(this, arguments); };
+const _seg = window.seg;
+window.seg = function (l) { _seg(l); const a = $('#lymodes'), b = $('#qmode'); if (a) a.hidden = !l; if (b) b.hidden = !!l; if (l) lmSync(); };
+V.addEventListener('click', e => { if (e.target.closest('[data-st="lyDual"]')) setTimeout(() => { drawLy(); }, 60); });
 
 /* ---------- boot ---------- */
 (async function koomBoot() {
@@ -537,6 +683,7 @@ const _apply = window.applySet; window.applySet = function () { _apply(); docume
   const o = J.get('koom.tracks', {}); for (const [u, c] of Object.entries(o)) TM.set(u, { t: { c, url: u, tags: {}, alt: '' }, p: null });
   const mt = document.createElement('header'); mt.className = 'mtop'; mt.innerHTML = `<div><b>${APP.name}</b><small>${APP.tagline}</small></div><a class="av" href="#/settings" aria-label="Profile"></a>`; V.parentNode.insertBefore(mt, V);
   if (S.pf === undefined) S.pf = 1; if (S.skip === undefined) S.skip = 1; saveS();
+  buildNP();
   P = []; buildU(); applySet(); $('#bt').textContent = 'Not Playing';
   await welcome(); refreshAv(); route();
 })();
