@@ -1,0 +1,21 @@
+{
+  "name": "KOOM.SITE — Feel Every Beat.",
+  "short_name": "KOOM.SITE",
+  "description": "A modern music discovery and listening app.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d0d10",
+  "theme_color": "#0d0d10",
+  "categories": ["music", "entertainment"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Search", "url": "./index.html#/search", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Library", "url": "./index.html#/library", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+  ]
+}
