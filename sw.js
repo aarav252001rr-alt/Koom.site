@@ -1,31 +1,21 @@
-const CACHE_NAME = 'koom-site-cache-v1';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/style.css',
-  '/app.js',
-  '/koom.js',
-  '/config.js',
-  '/i18n.js'
-];
-
-// Install Service Worker
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        return cache.addAll(urlsToCache);
-      })
-  );
-});
-
-// Fetch events (Offline support)
-self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache mein file mile toh wahi return karein, warna network se load karein
-        return response || fetch(event.request);
-      })
-  );
+/* KOOM service worker: instant loads + offline app shell. Music/API traffic is never cached here. */
+const V = 'koom-shell-v6', IMG = 'koom-img-v1';
+const SHELL = ['./', 'index.html', 'app.js?v=5', 'i18n.js?v=5', 'config.js', 'koom.js?v=6', 'style.css?v=6', 'manifest.webmanifest', 'icon.svg', 'icon-192.png'];
+self.addEventListener('install', e => e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
+self.addEventListener('activate', e => e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V && k !== IMG).map(k => caches.delete(k)))).then(() => self.clients.claim())));
+self.addEventListener('fetch', e => {
+  const r = e.request, u = new URL(r.url);
+  if (r.method !== 'GET') return;
+  if (u.origin === location.origin) {                         // app shell: stale-while-revalidate
+    e.respondWith(caches.open(V).then(async c => {
+      const hit = await c.match(r, { ignoreSearch: false }) || await c.match(r, { ignoreSearch: true });
+      const net = fetch(r).then(res => { if (res.ok) c.put(r, res.clone()); return res; }).catch(() => hit);
+      return hit || net;
+    }));
+  } else if (r.destination === 'image') {                     // cover art: cache-first, capped
+    e.respondWith(caches.open(IMG).then(async c => {
+      const hit = await c.match(r); if (hit) return hit;
+      try { const res = await fetch(r); if (res.ok || res.type === 'opaque') { c.put(r, res.clone()); c.keys().then(k => { if (k.length > 300) c.delete(k[0]); }); } return res; } catch (err) { return hit || Response.error(); }
+    }));
+  }
 });
