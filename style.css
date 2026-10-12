@@ -377,3 +377,41 @@ select.sel{background:var(--fill2);color:var(--ink);border:0;border-radius:8px;p
  .np.lyf .npr{display:block;padding:0}
  .np.lyf .pane{height:calc(100vh - 290px)}
 }
+
+/* ===== v5: marquee, player alignment, welcome 2.0 ===== */
+.npl .nmeta>div{min-width:0;flex:1}.npl .nmeta h2,.npl .nmeta p{overflow:hidden;white-space:nowrap;text-overflow:clip}
+.mqi{display:inline-block}.mq{-webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent)}
+.mq>.mqi{animation:mqm var(--mqt,6s) ease-in-out infinite alternate}
+@keyframes mqm{0%,16%{transform:translateX(0)}84%,100%{transform:translateX(calc(var(--mqd,0px)*-1))}}
+.nplyt{overflow:hidden;white-space:nowrap;text-overflow:clip!important}.nplyt .lyin{display:inline-block;position:relative;transition:transform .45s cubic-bezier(.3,.7,.3,1)}
+#ly p{overflow-wrap:anywhere}
+.tr{content-visibility:auto;contain-intrinsic-size:auto 56px}
+.nccov::before{content:"";position:absolute;inset:0 0 auto 0;height:150px;background:linear-gradient(rgba(0,0,0,.55),transparent);z-index:2;pointer-events:none;display:none}
+@media(max-width:860px){
+ .nccov::before{display:block}
+ .npl .ctl{display:grid;grid-template-columns:repeat(3,1fr);justify-items:center;align-items:center;padding:6px 18px}
+ .npinfo{padding-top:26px;background:linear-gradient(transparent,rgba(0,0,0,.38) 60%);text-shadow:0 1px 10px rgba(0,0,0,.8)}
+ .npfrom{text-shadow:0 1px 12px rgba(0,0,0,.8)}
+ .npx{background:rgba(0,0,0,.35);backdrop-filter:blur(10px);z-index:5}
+}
+#wel{overflow:hidden}.wo{position:absolute;border-radius:50%;filter:blur(70px);opacity:.5;pointer-events:none}
+.wo1{width:60vmax;height:60vmax;left:-20vmax;top:-18vmax;background:#ff2d55;animation:wfl 11s ease-in-out infinite alternate}
+.wo2{width:55vmax;height:55vmax;right:-22vmax;bottom:-20vmax;background:#5b3df5;animation:wfl 13s ease-in-out infinite alternate-reverse}
+@keyframes wfl{to{transform:translate(8vmax,6vmax) scale(1.15)}}
+.wlogo{width:84px;height:84px;border-radius:20px;margin:0 auto 16px;display:block;box-shadow:0 14px 40px rgba(255,45,85,.35);animation:spi .8s cubic-bezier(.2,.9,.25,1.2) both}
+@keyframes spi{from{opacity:0;transform:scale(.6)}}
+.wl{font-size:clamp(2.4rem,11vw,3.6rem)!important;margin:0}.wt{margin:8px 0 22px!important}
+.wdots{display:flex;gap:7px;justify-content:center;margin:0 0 22px}.wdots i{width:7px;height:7px;border-radius:99px;background:rgba(255,255,255,.28);transition:all .3s}.wdots i.on{width:22px;background:#fff}
+.wc h1{font-size:1.45rem!important;letter-spacing:-.01em}
+.wfield{position:relative;display:block;margin:6px 0 4px}
+.wfield #wn{background:transparent;border:0;border-radius:0;text-align:center;font-size:1.7rem;font-weight:700;padding:12px 4px 14px;margin:0;color:var(--ink);outline:none;caret-color:#ff2d55}
+.wfield #wn::placeholder{color:rgba(255,255,255,.32);font-weight:600}
+.wfield .wline{display:block;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);transition:all .3s}
+.wfield:focus-within .wline{background:linear-gradient(90deg,transparent,#ff2d55,transparent);height:3px}
+.whint{min-height:1.3em;margin:10px 0 22px;font-size:.84rem;color:rgba(255,255,255,.5);transition:color .2s}.whint.bad{color:#ff6b81;animation:wsh .35s}
+@keyframes wsh{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.wbtn{width:100%;justify-content:center;padding:15px;font-size:1.02rem;transition:opacity .25s,transform .25s}.wbtn:disabled{opacity:.35;pointer-events:none;transform:scale(.98)}
+.wok{width:84px;height:84px;border-radius:50%;background:linear-gradient(135deg,#ff4d6d,#c1123f);display:grid;place-items:center;margin:0 auto 22px;box-shadow:0 0 0 0 rgba(255,45,85,.5);animation:wring 1.3s ease-out .2s both,spi .6s cubic-bezier(.2,.9,.25,1.3) both}
+@keyframes wring{to{box-shadow:0 0 0 40px rgba(255,45,85,0)}}
+.chips{margin-bottom:8px}.chip{transition:transform .15s,background .2s}.chip:active{transform:scale(.94)}
+.nplyt.sl{-webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent)}

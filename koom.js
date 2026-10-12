@@ -63,11 +63,11 @@ function setFmt(t, id) { id ? EX.set(t.c.videoId, id) : EX.delete(t.c.videoId); 
 
 /* ---------- normalisation (the only place that knows API shapes) ---------- */
 const nm = v => typeof v === 'string' ? v : (v && (v.name || v.title || v.text)) || '';
-function thumbOf(x) {
+function thumbOf(x, w = 544) {
   const th = x.thumbnails || x.thumbnail || x.thumb || x.cover || x.image || x.artwork;
   let u = Array.isArray(th) ? th[th.length - 1] : th; u = u && u.url ? u.url : u;
   if (typeof u !== 'string' || !/^https?:/.test(u)) return '';
-  return u.replace(/=w\d+-h\d+[^&]*$/, '=w544-h544').replace(/=s\d+(-c)?$/, '=s544');
+  return u.replace(/=w\d+-h\d+[^&]*$/, `=w${w}-h${w}`).replace(/=s\d+(-c)?$/, `=s${w}`);
 }
 const secs = v => { if (typeof v === 'number') return v > 36000 ? v / 1000 : v; const m = String(v || '').split(':').map(Number); return m.length > 1 && m.every(isFinite) ? m.reduce((a, n) => a * 60 + n) : +v || 0; };
 function norm(x, d = {}) {
@@ -84,10 +84,10 @@ function norm(x, d = {}) {
   const A = Array.isArray(x.artists) ? x.artists : null;
   const artist = (A ? A.map(nm).filter(Boolean).join(', ') : nm(x.artist || x.author || x.channel || x.uploader)) || d.artist || '';
   const al = x.album, album = nm(al) || d.album || '';
-  let thumb = thumbOf(x) || d.thumb || ''; if (!thumb && vid) thumb = `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`;
+  let thumb = thumbOf(x, 320) || d.thumb || '', big = thumbOf(x, 800) || thumb; if (!thumb && vid) thumb = big = `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`;
   const yr = x.year || x.releaseYear || '';
   const sub = k === 'album' ? [artist, yr].filter(Boolean).join(' · ') : k === 'artist' ? (x.subscribers || 'Artist') : k === 'playlist' ? (nm(x.author || x.owner || x.subtitle) || 'Playlist') : artist;
-  return { kind: k, id, title, artist, artistId: (A && A[0] && (A[0].id || A[0].browseId)) || x.artistId || x.channelId || d.artistId || '', album, albumId: (al && (al.id || al.browseId)) || x.albumId || d.albumId || '', thumb, dur: secs(x.duration_seconds ?? x.durationSeconds ?? x.lengthSeconds ?? x.length ?? x.duration), sub, rank: x.rank || x.position || 0 };
+  return { kind: k, id, title, artist, artistId: (A && A[0] && (A[0].id || A[0].browseId)) || x.artistId || x.channelId || d.artistId || '', album, albumId: (al && (al.id || al.browseId)) || x.albumId || d.albumId || '', thumb, big, dur: secs(x.duration_seconds ?? x.durationSeconds ?? x.lengthSeconds ?? x.length ?? x.duration), sub, rank: x.rank || x.position || 0 };
 }
 function extractSections(d, def) {
   const out = [], list = a => a.map(i => norm(i)).filter(Boolean), K = ['contents', 'items', 'results', 'songs', 'tracks'];
@@ -111,7 +111,7 @@ const flat = d => extractSections(d, '').flatMap(s => s.items);
 /* ---------- tracks / lists ---------- */
 function reg(x) {
   const url = 'yt:' + x.id, e = TM.get(url); if (e) return e.t;
-  const t = { url, tags: {}, alt: '', c: { title: x.title, artist: x.artist, album: x.album, cover: x.thumb, duration: x.dur, videoId: x.id, artistId: x.artistId, albumId: x.albumId } };
+  const t = { url, tags: {}, alt: '', c: { title: x.title, artist: x.artist, album: x.album, cover: x.thumb, big: x.big, duration: x.dur, videoId: x.id, artistId: x.artistId, albumId: x.albumId } };
   TM.set(url, { t, p: null }); return t;
 }
 function mkList(tracks, name) {
@@ -204,7 +204,7 @@ $('#qq').addEventListener('click', e => {
 
 /* ---------- view helpers ---------- */
 const sh = (h, more) => `<div class="sech"><h2>${h}</h2>${more || ''}</div>`;
-const cardX = (x, attr) => `<div class="card k" tabindex="0" role="link" ${attr || `data-kd="${x.kind}" data-id="${esc(x.id)}"`}><div class="art ${x.kind === 'artist' ? 'rnd' : ''}"><img src="${esc(x.thumb || PH)}" alt="" loading="lazy"></div><b>${esc(x.title)}</b><small>${esc(x.sub)}</small></div>`;
+const cardX = (x, attr) => `<div class="card k" tabindex="0" role="link" ${attr || `data-kd="${x.kind}" data-id="${esc(x.id)}"`}><div class="art ${x.kind === 'artist' ? 'rnd' : ''}"><img src="${esc(x.thumb || PH)}" alt="" loading="lazy" decoding="async"></div><b>${esc(x.title)}</b><small>${esc(x.sub)}</small></div>`;
 function cards(items, name) {
   const songs = items.filter(x => x.kind === 'song' || x.kind === 'video'), L = mkList(songs.map(reg), name); let n = 0;
   return `<div class="hr">${items.map(x => (x.kind === 'song' || x.kind === 'video') ? cardX(x, `data-l="${L.id}" data-i="${n++}"`) : cardX(x)).join('')}</div>`;
@@ -273,7 +273,7 @@ async function showArtist(id) {
   view = ''; const my = RT; setV(skel('list'), my);
   try {
     const [a, b] = await Promise.allSettled([mApi('/artist/' + enc(id)), mApi('/artist/' + enc(id) + '/albums')]); if (a.status !== 'fulfilled') throw a.reason;
-    const d = a.value, info = d.artist || d, th = thumbOf(info) || thumbOf(d), ss = extractSections(d, 'Popular Songs');
+    const d = a.value, info = d.artist || d, th = thumbOf(info, 800) || thumbOf(d, 800), ss = extractSections(d, 'Popular Songs');
     if (b.status === 'fulfilled') extractSections(b.value, 'Albums').forEach(s => { const k = ss.findIndex(x => x.title === s.title); if (k < 0) ss.push(s); else if (s.items.length > ss[k].items.length) ss[k] = s; });
     const body = renderSections(ss), bio = info.description || info.bio || '';
     setV(`<div class="ahero"><div class="abg" style="background-image:url('${esc(th)}')"></div><div class="at"><span class="kick">ARTIST</span><h1>${esc(nm(info.name || info.title) || 'Artist')}</h1>${info.subscribers ? `<p class="meta">${esc(info.subscribers)}</p>` : ''}${bio ? `<p class="lead clamp">${esc(bio)}</p>` : ''}${FIRST ? `<div class="btns"><button class="pill pri" data-act="pplay" data-pid="${FIRST.id}">${ic('play', 18)}Play</button><button class="pill" data-act="pshuf" data-pid="${FIRST.id}">${ic('shuf', 18)}Shuffle</button>${libBtn('artists', id, nm(info.name || info.title) || 'Artist', 'Artist', th)}</div>` : `<div class="btns">${libBtn('artists', id, nm(info.name || info.title) || 'Artist', 'Artist', th)}</div>`}</div></div>` + (body || '<div class="msg">No content for this artist yet.</div>'), my);
@@ -321,16 +321,22 @@ function drawResults() {
 }
 
 /* ---------- welcome / about / legal / footer / settings ---------- */
+const wsleep = ms => new Promise(r => setTimeout(r, ms));
+const WBG = '<div class="wbg"></div><div class="wo wo1"></div><div class="wo wo2"></div>';
+const wdots = n => `<div class="wdots" aria-hidden="true"><i class="${n === 1 ? 'on' : ''}"></i><i class="${n === 2 ? 'on' : ''}"></i></div>`;
 function welcome() {
   if (NAME()) return Promise.resolve();
   return new Promise(res => {
-    const w = document.createElement('div'); w.id = 'wel';
-    w.innerHTML = `<div class="wbg"></div><div class="wc"><div class="wl">${APP.name}</div><p class="wt">${APP.tagline}</p><h1>Welcome to ${APP.name}.</h1><p class="ws">What should we call you?</p><input id="wn" maxlength="30" placeholder="Your name" aria-label="Your name" autocomplete="given-name"><button class="pill pri" id="wgo">Continue →</button></div>`;
-    document.body.append(w); const i = $('#wn'); i.focus();
+    const w = document.createElement('div'); w.id = 'wel'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-label', 'Welcome to KOOM');
+    w.innerHTML = `${WBG}<div class="wc"><img class="wlogo" src="icon-192.png" alt="" width="84" height="84"><div class="wl">${APP.name}</div><p class="wt">${APP.tagline}</p>${wdots(1)}<h1>Welcome to ${APP.name}</h1><p class="ws">What should we call you?</p>
+      <label class="wfield"><input id="wn" maxlength="30" placeholder="Your name" aria-label="Your name" autocomplete="given-name" autocapitalize="words" enterkeyhint="go" spellcheck="false"><span class="wline"></span></label>
+      <p class="whint" id="whint">Stored only on this device</p><button class="pill pri wbtn" id="wgo" disabled>Continue</button></div>`;
+    document.body.append(w); const i = $('#wn'), btn = $('#wgo'), hint = $('#whint'); setTimeout(() => i.focus(), 500);
     mApi('/trending').then(d => { const a = flat(d).filter(x => x.thumb).slice(0, 8); if (a.length) $('.wbg').innerHTML = a.map(x => `<img src="${esc(x.thumb)}" alt="">`).join(''); }).catch(() => { });
-    const fin = n => { w.innerHTML = `<div class="wbg on"></div><div class="wc"><h1 class="wh">Welcome, ${esc(n)}</h1></div>`; setTimeout(() => { w.classList.add('out'); setTimeout(() => { w.remove(); res(); }, 600); }, 1300); };
-    const go = () => { const n = i.value.trim(); if (!n) { i.focus(); i.classList.add('bad'); return; } LS.set('koom.name', n); pickGenres(w, () => fin(n)); };
-    $('#wgo').onclick = go; i.onkeydown = e => { if (e.key === 'Enter') go(); };
+    i.oninput = () => { btn.disabled = !i.value.trim(); hint.textContent = 'Stored only on this device'; hint.classList.remove('bad'); };
+    const fin = n => { w.innerHTML = `${WBG}<div class="wc"><div class="wok"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><h1 class="wh">Welcome, ${esc(n)}</h1></div>`; setTimeout(() => { w.classList.add('out'); setTimeout(() => { w.remove(); res(); }, 600); }, 1500); };
+    const go = () => { const n = i.value.trim().replace(/\s+/g, ' '); if (!n) { hint.textContent = 'Please enter your name'; hint.classList.add('bad'); i.focus(); return; } LS.set('koom.name', n); pickGenres(w, () => fin(n), 2); };
+    btn.onclick = go; i.onkeydown = e => { if (e.key === 'Enter') go(); };
   });
 }
 const SOC = [['instagram', 'Instagram', 'https://instagram.com/', 'IG'], ['github', 'GitHub', 'https://github.com/', 'GH'], ['youtube', 'YouTube', 'https://youtube.com/@', 'YT'], ['x', 'X / Twitter', 'https://x.com/', 'X']];
@@ -360,7 +366,7 @@ const LEGAL = {
     ['Contact', `Questions about these terms: ${contact()}.`]]]
 };
 function showLegal(k) { view = k; const [t, s] = LEGAL[k]; setV(`<h1 class="lt">${t}</h1><p class="lead">Last updated: October 2026 · ${APP.name} v${APP.version}</p><div class="doc">${s.map(([h, p]) => `<h2>${h}</h2><p>${p}</p>`).join('')}</div>`); }
-window.kProfile = () => `<div class="sg"><h2>Profile</h2><div class="sc">${sr('Display name', 'Used for your greeting on Home', `<span class="nmw"><input class="sbox nmi" id="kname" maxlength="30" value="${esc(NAME())}" aria-label="Display name"><button class="btn2" data-act="savename">Save</button></span>`)}</div></div>`;
+window.kProfile = () => `<div class="sg"><h2>Profile</h2><div class="sc">${sr('Display name', 'Shown in your greeting on Home', `<button class="btn2" data-act="editname">${esc(NAME()) || 'Set name'} ✎</button>`)}</div></div>`;
 window.kAbout = () => `<div class="sg"><h2>About</h2><div class="sc">${sr(APP.name + ' · v' + APP.version, APP.tagline, '')}${['about:About', 'privacy:Privacy Policy', 'terms:Terms of Service'].map(x => { const [h, l] = x.split(':'); return sr(l, '', `<a class="btn2" href="#/${h}">Open</a>`); }).join('')}</div></div>`;
 window.trackMenu = (t, p, anchor) => {
   const f = FAV.includes(t.url);
@@ -394,10 +400,10 @@ document.addEventListener('error', e => { if (e.target.tagName === 'IMG' && e.ta
 
 /* ---------- onboarding taste, browse, moods, settings extras ---------- */
 const GENRES = ['Bollywood', 'Pop', 'Hip-Hop', 'Punjabi', 'Lo-fi', 'Romantic', 'Rock', 'Indie', 'EDM', 'Devotional', 'Classical', 'K-pop', 'R&B', 'Jazz', 'Sufi', 'Retro'];
-function pickGenres(host, done) {
-  const sel = new Set(J.get('koom.genres', []));
-  host.innerHTML = `<div class="wbg on"></div><div class="wc"><h1>Pick what you love</h1><p class="ws">We’ll use this to build Made For You. Choose a few.</p><div class="chips">${GENRES.map(g => `<button class="chip ${sel.has(g) ? 'on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`).join('')}</div><button class="pill pri" id="wg2">Done</button><button class="skip" id="wsk">Skip</button></div>`;
-  host.onclick = e => { const c = e.target.closest('.chip'); if (c) { c.classList.toggle('on'); sel.has(c.dataset.g) ? sel.delete(c.dataset.g) : sel.add(c.dataset.g); } };
+function pickGenres(host, done, step) {
+  const sel = new Set(J.get('koom.genres', [])), cnt = () => sel.size ? `${sel.size} selected` : 'Pick a few to get started';
+  host.innerHTML = `${WBG}<div class="wc">${step ? wdots(step) : ''}<h1>Pick what you love</h1><p class="ws">We’ll build Made For You from your taste.</p><div class="chips">${GENRES.map(g => `<button class="chip ${sel.has(g) ? 'on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`).join('')}</div><p class="whint" id="gcnt">${cnt()}</p><button class="pill pri wbtn" id="wg2">Done</button><button class="skip" id="wsk">Skip for now</button></div>`;
+  host.onclick = e => { const c = e.target.closest('.chip'); if (c) { c.classList.toggle('on'); sel.has(c.dataset.g) ? sel.delete(c.dataset.g) : sel.add(c.dataset.g); $('#gcnt').textContent = cnt(); } };
   $('#wg2').onclick = () => { J.set('koom.genres', [...sel]); done(); }; $('#wsk').onclick = done;
 }
 const hue = t => [...t].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
@@ -436,6 +442,8 @@ window.route = function (keep) {
 };
 const _act2 = window.act;
 window.act = (a, c) => {
+  if (a === 'editname') { kAsk('What should we call you?', 'Your name', NAME()).then(n => { if (n) { LS.set('koom.name', n.replace(/\s+/g, ' ').slice(0, 30)); refreshAv(); toast('Name updated'); route(1); } }); return; }
+  if (a === 'install') { if (deferredInstall) { deferredInstall.prompt(); return; } return toast(location.protocol === 'http:' && !/^(localhost|127\.)/.test(location.hostname) ? 'Installing needs an https address' : /iPhone|iPad/i.test(navigator.userAgent) ? 'Tap Share, then “Add to Home Screen”' : 'Open the browser menu and choose “Install app”'); }
   if (a === 'newpl') { newPlaylist().then(id => { if (id) location.hash = '#/p/' + id; }); return; }
   if (a === 'qsave') { if (!Q.length) return toast('Queue is empty'); newPlaylist(Q.filter(t => t.c && t.c.videoId).map(t => t.url)); return; }
   if (a === 'shclr') { J.set('koom.sh', []); toast('Search history cleared'); return route(1); }
@@ -568,18 +576,28 @@ window.drawLy = function () {
   lyStart(); updLine(); lmSync();
 };
 /* one-line lyric above the progress bar (mirrors the active line of the full lyrics) */
+function marq(el) {                      // text wider than its box scrolls back and forth instead of being cut with "..."
+  if (!el) return; let i = el.querySelector(':scope > .mqi');
+  if (!i) { i = document.createElement('span'); i.className = 'mqi'; while (el.firstChild) i.append(el.firstChild); el.append(i); }
+  el.classList.remove('mq'); el.style.removeProperty('--mqd'); if (!el.clientWidth) return;
+  requestAnimationFrame(() => { const d = i.scrollWidth - el.clientWidth; if (d > 6) { el.style.setProperty('--mqd', d + 'px'); el.style.setProperty('--mqt', (d / 26 + 3.4).toFixed(1) + 's'); el.classList.add('mq'); } });
+}
+const marqAll = () => { marq($('#nt')); marq($('#na')); const l = $('#nplyt'); if (l && !l.querySelector('.wd')) marq(l); };
 function updLine() {
   const el = $('#nplyt'), box = $('#nplyl'); if (!el) return; const t = Q[qi];
   if (!t || !t.lyr || !L.length) { box.hidden = true; return; } box.hidden = false;
   const p = ai >= 0 ? document.getElementById('l' + ai) : null;
-  if (!p) { el.innerHTML = '<span class="gp">♪</span>'; return; }
-  if (p.classList.contains('gap')) { el.innerHTML = '<span class="gp">♪</span>'; return; }
-  const c = p.cloneNode(true); c.querySelectorAll('.sub').forEach(x => x.remove()); el.innerHTML = c.innerHTML;
+  if (!p || p.classList.contains('gap')) { el.innerHTML = '<span class="lyin"><span class="gp">♪</span></span>'; return; }
+  const c = p.cloneNode(true); c.querySelectorAll('.sub').forEach(x => x.remove()); el.innerHTML = '<span class="lyin">' + c.innerHTML + '</span>';
+  if (!el.querySelector('.wd')) marq(el);
 }
 const _lyA = window.lyActive; window.lyActive = function (sc) { _lyA(sc); updLine(); };
 const _lyF = window.lyFrame; window.lyFrame = function () {
   _lyF();
-  if (ai >= 0) { const src = document.querySelectorAll('#l' + ai + ' .wd'), dst = document.querySelectorAll('#nplyt .wd'); dst.forEach((d, k) => src[k] && d.classList.toggle('w', src[k].classList.contains('w'))); }
+  if (ai >= 0) { const src = document.querySelectorAll('#l' + ai + ' .wd'), dst = document.querySelectorAll('#nplyt .wd'); dst.forEach((d, k) => src[k] && d.classList.toggle('w', src[k].classList.contains('w')));
+    const el = $('#nplyt'), inn = el && el.querySelector('.lyin');       // keep the filling word in view on long lines
+    if (inn) { const over = inn.scrollWidth - el.clientWidth, last = [...inn.querySelectorAll('.wd.w')].pop(); el.classList.toggle('sl', over > 4 && !!last && last.offsetLeft + last.offsetWidth > el.clientWidth - 40); inn.style.transform = over > 4 && last ? `translateX(${-Math.min(over, Math.max(0, last.offsetLeft + last.offsetWidth - el.clientWidth + 40))}px)` : ''; }
+  }
 };
 const LMODES = [['orig', 'Original'], ['roman', 'Hinglish'], ['en', 'English']];
 function lmSync() { const r = $('#lymodes'); if (!r) return; r.querySelectorAll('[data-lm]').forEach(b => { const k = b.dataset.lm; b.classList.toggle('on', k === 'dual' ? !!S.lyDual : k === (S.lyMode || 'orig')); }); r.classList.toggle('busy', !!(Q[qi] && Q[qi].lyBusy)); }
@@ -611,6 +629,7 @@ const sel = (k, opts, cur) => `<select class="sel" data-kq="${k}" aria-label="${
 const FMTS = [['', 'Auto'], ['m4a', 'M4A (AAC)'], ['webm', 'WebM (Opus)']];
 const kPlay = () => `<div class="sg"><h2>Streaming</h2><div class="sc">${sr('Streaming quality', 'Higher quality uses more data', sel('sq', KQP, curQ()))}${sr('Audio format', 'M4A plays on every device, WebM (Opus) is smaller', sel('sf', FMTS, S.sf || ''))}${sr('Pre-load next song', 'The next song starts instantly', sw('pf'))}${sr('Skip unplayable songs', 'Moves on if a song can’t be played', sw('skip'))}${sr('Music taste', 'Used for Made For You on Home', '<button class="btn2" data-act="taste">Edit</button>')}</div></div>
 <div class="sg"><h2>Downloads</h2><div class="sc">${sr('Download quality', 'Used by every Download button', sel('dq', DQP, S.dq || 'ask'))}${sr('Audio format', 'Same setting as streaming', sel('sf', FMTS, S.sf || ''))}</div></div>`;
+let deferredInstall = null; addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; }); addEventListener('appinstalled', () => { deferredInstall = null; toast('KOOM installed'); });
 const _kp = window.kProfile; window.kProfile = () => _kp() + kPlay();
 const _showSet = window.showSet;
 window.showSet = function () {
@@ -621,6 +640,7 @@ window.showSet = function () {
   g[3].querySelector('.sc').insertAdjacentHTML('beforeend', sr('Reduce motion', 'Fewer animations', sw('rm')));
   g[5].querySelector('.sc').insertAdjacentHTML('afterbegin', sr('Lyrics language', 'Hindi and Punjabi lyrics can be shown in Hinglish (Roman) or translated to English', sel('lyMode', [['orig', 'Original'], ['roman', 'Hinglish (Roman)'], ['en', 'English (translated)']], S.lyMode || 'orig')) + sr('Show original with translation', 'Both lines together', sw('lyDual')));
   g[6].querySelector('.sc').insertAdjacentHTML('beforeend', sr('Search history', J.get('koom.sh', []).length + ' searches', '<button class="btn2" data-act="shclr">Clear</button>') + sr('Backup', 'Save or restore your library, playlists and settings', '<span><button class="btn2" data-act="kexp">Export</button> <button class="btn2" data-act="kimp">Import</button></span>'));
+  if (!matchMedia('(display-mode: standalone)').matches) g[8].querySelector('.sc').insertAdjacentHTML('afterbegin', sr('Install KOOM', 'Add it to your home screen for a full-screen app', '<button class="btn2" data-act="install">Install</button>'));
   const order = [g[0], g[3], g[4], g[1], g[2], g[5], g[6], g[7], g[8]], ids = ['profile', 'look', 'play', 'stream', 'dl', 'lyr', 'data', 'keys', 'about'];
   order.forEach((e, i) => { e.id = 'st-' + ids[i]; V.append(e); });
   const jump = [['profile', 'Profile'], ['look', 'Appearance'], ['play', 'Playback'], ['stream', 'Streaming'], ['dl', 'Downloads'], ['lyr', 'Lyrics'], ['data', 'Data'], ['about', 'About']];
@@ -670,21 +690,29 @@ function npMeta() {
   const pl = KPL && KPL.name ? KPL : curPl; $('#npfrom').textContent = pl && pl.name ? 'Playing from ' + pl.name : '';
   $('#npinfo').innerHTML = i ? `${i.ext === 'm4a' ? 'AAC' : i.ext === 'webm' ? 'Opus' : (i.ext || 'Audio').toUpperCase()}${kb ? ' · ~' + kb + ' kbps' : ''} · Stereo` + (n ? `<br>Up next · ${esc(title(n))}` : '') : '';
   $('#npdev').textContent = (NAME() ? NAME() + '’s ' : '') + (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ? 'Phone' : 'Device');
-  $('#ndl').innerHTML = $('#ndl').innerHTML; $('#npdl').innerHTML = ic('dl', 24);
+  $('#npdl').innerHTML = ic('dl', 24); if (t.c.big && $('#nc').getAttribute('src') !== t.c.big) $('#nc').src = t.c.big; marqAll();
 }
 let KPL = null; const _pf = window.playFrom; window.playFrom = function (p) { KPL = p; return _pf.apply(this, arguments); };
+const _op = window.openNP; window.openNP = function () { const r = _op.apply(this, arguments); requestAnimationFrame(() => requestAnimationFrame(marqAll)); return r; };
+let _rz; addEventListener('resize', () => { clearTimeout(_rz); _rz = setTimeout(marqAll, 200); });
 const _seg = window.seg;
 window.seg = function (l) { _seg(l); const a = $('#lymodes'), b = $('#qmode'); if (a) a.hidden = !l; if (b) b.hidden = !!l; if (l) lmSync(); };
 V.addEventListener('click', e => { if (e.target.closest('[data-st="lyDual"]')) setTimeout(() => { drawLy(); }, 60); });
 
 /* ---------- boot ---------- */
 (async function koomBoot() {
+  const t0 = performance.now(); window.__koomUp = 1;
   document.title = `${APP.name} — ${APP.tagline}`; window.SITE = APP.name; all('.site').forEach(e => e.textContent = APP.name);
   const o = J.get('koom.tracks', {}); for (const [u, c] of Object.entries(o)) TM.set(u, { t: { c, url: u, tags: {}, alt: '' }, p: null });
   const mt = document.createElement('header'); mt.className = 'mtop'; mt.innerHTML = `<div><b>${APP.name}</b><small>${APP.tagline}</small></div><a class="av" href="#/settings" aria-label="Profile"></a>`; V.parentNode.insertBefore(mt, V);
   if (S.pf === undefined) S.pf = 1; if (S.skip === undefined) S.skip = 1; saveS();
   buildNP();
   P = []; buildU(); applySet(); $('#bt').textContent = 'Not Playing';
-  await welcome(); refreshAv(); route();
+  [API_CONFIG.MUSIC_API_URL, API_CONFIG.STREAM_API_URL].forEach(u => { if (!real(u)) return; const l = document.createElement('link'); l.rel = 'preconnect'; l.href = new URL(u).origin; document.head.append(l); http(u, '/health', { ttl: 600000 }).catch(() => { }); });   // wake the services + open the connections early
+  ['https://i.ytimg.com', 'https://lh3.googleusercontent.com'].forEach(h => { const l = document.createElement('link'); l.rel = 'preconnect'; l.href = h; document.head.append(l); });
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || /^(localhost|127\.)/.test(location.hostname))) navigator.serviceWorker.register('sw.js').catch(() => { });
+  const hideSplash = async () => { const sp = $('#splash'); await wsleep(Math.max(0, 1100 - (performance.now() - t0))); if (sp) { sp.classList.add('out'); await wsleep(480); sp.remove(); } };
+  if (NAME()) { refreshAv(); route(); await hideSplash(); }
+  else { await hideSplash(); await welcome(); refreshAv(); route(); }
 })();
 $('#ndl').onclick = e => dl(Q[qi], null, e.currentTarget);
