@@ -3,39 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>KOOM.SITE — Feel Every Beat.</title>
-<meta name="description" content="KOOM.SITE is a modern music discovery and listening interface. Feel Every Beat.">
+<title>KOOM — Music. Made Personal.</title>
+<meta name="description" content="KOOM is a modern music discovery and listening interface. Music. Made Personal.">
 <meta name="theme-color" content="#0d0d10">
-<meta property="og:title" content="KOOM.SITE — Feel Every Beat.">
-<meta property="og:site_name" content="KOOM.SITE">
+<meta property="og:title" content="KOOM — Music. Made Personal.">
+<meta property="og:site_name" content="KOOM">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="KOOM.SITE">
+<meta name="apple-mobile-web-app-title" content="KOOM">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <style>#splash{position:fixed;inset:0;z-index:600;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#0d0d10;color:#fff;transition:opacity .5s ease,transform .5s ease}
 #splash.out{opacity:0;transform:scale(1.04);pointer-events:none}
 #splash .sp-glow{position:absolute;width:70vmax;height:70vmax;border-radius:50%;background:radial-gradient(closest-side,rgba(255,45,85,.28),transparent);animation:spg 3s ease-in-out infinite alternate}
-#splash img{position:relative;width:112px;height:112px;border-radius:26px;box-shadow:0 18px 50px rgba(255,45,85,.35);animation:spi .9s cubic-bezier(.2,.9,.25,1.2) both}
+#splash img{position:relative;width:112px;height:112px;filter:drop-shadow(0 16px 36px rgba(255,45,85,.4));animation:spi .9s cubic-bezier(.2,.9,.25,1.2) both}
 #splash .sp-name{position:relative;font:800 2.1rem/1 Inter,system-ui,sans-serif;letter-spacing:.34em;margin-right:-.34em;animation:spu .8s .25s both}
 #splash .sp-tag{position:relative;font:600 .78rem/1 Inter,system-ui,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.55);animation:spu .8s .45s both}
 @keyframes spi{from{opacity:0;transform:scale(.6)}}@keyframes spu{from{opacity:0;transform:translateY(10px)}}@keyframes spg{to{transform:scale(1.12);opacity:.75}}
 @media(prefers-reduced-motion:reduce){#splash *{animation:none!important}}</style>
 <script src="config.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'"><noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=8">
 <script src="i18n.js?v=5"></script>
 <script src="app.js?v=5"></script>
 </head>
 <body>
 <script>setTimeout(function(){var s=document.getElementById('splash');if(s&&!window.__koomUp){s.classList.add('out')}},7000)</script>
-<div id="splash" aria-hidden="true"><div class="sp-glow"></div><img src="icon-192.png" alt="" width="112" height="112"><div class="sp-name">KOOM.SITE</div><div class="sp-tag">Feel Every Beat.</div></div>
+<div id="splash" aria-hidden="true"><div class="sp-glow"></div><img src="icon-192.png" alt="" width="112" height="112"><div class="sp-name">KOOM</div><div class="sp-tag">Music. Made Personal.</div></div>
 <aside class="side">
-  <a class="brand" href="#/"><span data-ic="logo" data-s="26"></span><span class="site">KOOM.SITE</span></a>
+  <a class="brand" href="#/"><span data-ic="logo" data-s="26"></span><span class="site">KOOM</span></a>
   <nav class="nav">
     <a href="#/" data-k="home"><span data-ic="home"></span><span data-i18n="home"></span></a>
     <a href="#/search" data-k="search"><span data-ic="search"></span><span data-i18n="search"></span></a>
@@ -578,6 +577,6 @@ function refreshLang(){initLang();if(Q[qi]){ui();drawQ();drawLy()}route(1)}
 initLang();
 
 </script>
-<script src="koom.js?v=6"></script>
+<script src="koom.js?v=8"></script>
 </body>
 </html>

@@ -133,7 +133,7 @@ async function dl(t, how, anchor) {
   } catch (e) { toast('Download failed: ' + (e.message === 'config' ? 'stream service is not configured.' : e.message)); }
 }
 window.dl = dl;
-const persist = () => { const keep = new Set([...FAV, ...HIST.map(h => h.u), ...UPL.flatMap(p => p.urls)]), o = {}; keep.forEach(u => { const e = TM.get(u); if (e) o[u] = e.t.c; }); J.set('koom.tracks', o); };
+const persist = () => { const keep = new Set([...FAV, ...HIST.map(h => h.u), ...UPL.flatMap(p => p.urls), ...Q.slice(0, 100).map(t => t.url)]), o = {}; keep.forEach(u => { const e = TM.get(u); if (e) o[u] = e.t.c; }); J.set('koom.tracks', o); };
 ['logPlay', 'toggleFav', 'addToPl'].forEach(n => { const f = window[n]; window[n] = function () { const r = f.apply(this, arguments); persist(); return r; }; });
 
 /* ---------- playback via Stream API ---------- */
@@ -186,17 +186,49 @@ window.play = function (i, r, k) { const x = _play(i, r, k), t = Q[i]; if (t && 
 window.autoNext = async () => { const n = Q.length; await fillRadio(Q[qi], true); if (Q.length > n) play(n); else toast('No more recommendations right now.'); };
 
 /* queue: Now Playing / Up Next / Recommended + reorder/remove/play now */
+const GRIP = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><rect x="4" y="6.6" width="16" height="2.4" rx="1.2"/><rect x="4" y="10.8" width="16" height="2.4" rx="1.2"/><rect x="4" y="15" width="16" height="2.4" rx="1.2"/></svg>';
 window.drawQ = function () {
   const el = $('#qq'); if (!Q.length) { el.innerHTML = '<div class="msg">Your queue is empty.</div>'; return; }
-  let g = '', h = `<div class="qtop"><b>Queue · ${Q.length}</b><span><button class="btn2" data-act="qsave">Save as playlist</button> <button class="btn2" data-act="qclear">Clear</button></span></div>`;
+  let g = '', h = `<div class="qtop"><b>Queue · ${Q.length}</b><small class="qhint">Hold ≡ and drag to reorder</small></div>`;
   Q.forEach((t, i) => {
     const G = i < qi ? 'Played' : i === qi ? 'Now Playing' : t.rec ? 'Recommended' : 'Up Next';
     if (G !== g) { g = G; h += `<div class="qh">${G}</div>`; }
-    h += `<div class="qr ${i === qi ? 'cur' : ''}" data-i="${i}" tabindex="0" role="button"><img src="${esc(cover(t))}" alt="" loading="lazy"><div><b>${esc(title(t))}</b><small>${esc(artist(t))}</small></div>${i === qi ? '' : `<span class="qmv"><button class="ib sm" data-mv="-1" aria-label="Move up">▲</button><button class="ib sm" data-mv="1" aria-label="Move down">▼</button><button class="ib sm" data-x aria-label="Remove">${ic('x', 16)}</button></span>`}</div>`;
+    h += `<div class="qr ${i === qi ? 'cur' : ''}" data-i="${i}" tabindex="0" role="button"><img src="${esc(cover(t))}" alt="" loading="lazy" decoding="async"><div><b>${esc(title(t))}</b><small>${esc(artist(t))}</small></div><button class="qgrip" aria-label="Reorder: drag, or press the up and down arrow keys">${GRIP}</button>${i === qi ? '<span></span>' : `<button class="ib sm" data-x aria-label="Remove">${ic('x', 16)}</button>`}</div>`;
   });
   el.innerHTML = h;
 };
-$('#qq').addEventListener('click', e => {
+function qMove(from, to) {
+  if (from === to || to < 0 || to >= Q.length) return; const cur = Q[qi]; const [it] = Q.splice(from, 1); it.rec = 0; Q.splice(to, 0, it); qi = Q.indexOf(cur); drawQ(); saveSess();
+}
+function qgrab(e) {                                   // drag a queue row up/down (touch + mouse)
+  const g = e.target.closest('.qgrip'); if (!g || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  const list = $('#qq'), rows = [...list.querySelectorAll('.qr')], row = g.closest('.qr'), from = rows.indexOf(row); if (from < 0) return;
+  e.preventDefault(); e.stopPropagation(); try { g.setPointerCapture(e.pointerId); } catch (x) { } navigator.vibrate && navigator.vibrate(12);
+  const lt = list.getBoundingClientRect().top, s0 = list.scrollTop, r0 = rows.map(r => r.getBoundingClientRect()), ct = r0.map(r => r.top - lt + s0), h = r0[from].height;
+  const step = from < rows.length - 1 ? ct[from + 1] - ct[from] : ct[from] - ct[Math.max(0, from - 1)] || h, y0 = e.clientY; let py = y0, to = from, raf = 0;
+  row.classList.add('drag'); list.classList.add('dragging');
+  const apply = () => {
+    const dy = py - y0 + (list.scrollTop - s0); row.style.transform = `translateY(${dy}px) scale(1.02)`;
+    const cy = ct[from] + h / 2 + dy; to = from;
+    rows.forEach((r, i) => { const mid = ct[i] + r0[i].height / 2; if (i < from && cy < mid) to = Math.min(to, i); if (i > from && cy > mid) to = Math.max(to, i); });
+    rows.forEach((r, i) => { if (i === from) return; r.style.transform = from < to && i > from && i <= to ? `translateY(${-step}px)` : from > to && i >= to && i < from ? `translateY(${step}px)` : ''; });
+  };
+  const loop = () => { const lr = list.getBoundingClientRect(); if (py < lr.top + 64) list.scrollTop -= 10; else if (py > lr.bottom - 64) list.scrollTop += 10; apply(); raf = requestAnimationFrame(loop); };
+  loop();
+  const mv = ev => { py = ev.clientY; }, done = () => {
+    cancelAnimationFrame(raf); g.removeEventListener('pointermove', mv); g.removeEventListener('pointerup', done); g.removeEventListener('pointercancel', done);
+    list.classList.remove('dragging'); rows.forEach(r => { r.style.transform = ''; r.classList.remove('drag'); }); qMove(from, to);
+  };
+  g.addEventListener('pointermove', mv); g.addEventListener('pointerup', done); g.addEventListener('pointercancel', done);
+}
+$('#qq').addEventListener('pointerdown', qgrab);
+$('#qq').addEventListener('contextmenu', e => { if (e.target.closest('.qgrip')) e.preventDefault(); });
+$('#qq').addEventListener('keydown', e => {
+  const g = e.target.closest('.qgrip'); if (!g || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return; e.preventDefault();
+  const i = +g.closest('.qr').dataset.i, n = i + (e.key === 'ArrowUp' ? -1 : 1); qMove(i, n);
+  const f = $(`#qq .qr[data-i="${Math.max(0, Math.min(Q.length - 1, n))}"] .qgrip`); f && f.focus();
+});
+$('#qq').addEventListener('click', e => { if (e.target.closest('.qgrip')) { e.stopPropagation(); return; }
   const b = e.target.closest('[data-mv]'); if (!b) return; e.stopPropagation();
   const i = +b.closest('.qr').dataset.i, j = i + +b.dataset.mv; if (j < 0 || j >= Q.length || j === qi) return;
   [Q[i], Q[j]] = [Q[j], Q[i]]; drawQ();
@@ -449,6 +481,8 @@ window.act = (a, c) => {
   if (a === 'shclr') { J.set('koom.sh', []); toast('Search history cleared'); return route(1); }
   if (a === 'kexp') return exportData();
   if (a === 'kimp') return importData();
+  if (a === 'qshufup') { const up = Q.splice(qi + 1); for (let i = up.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [up[i], up[j]] = [up[j], up[i]]; } Q.push(...up); drawQ(); saveSess(); return toast('Up Next shuffled'); }
+  if (a === 'qdedupe') { const cur = Q[qi], seen = new Set(), n = Q.length; Q = Q.filter(t => { if (t === cur) { seen.add(t.url); return true; } if (seen.has(t.url) || (cur && t.url === cur.url)) return false; seen.add(t.url); return true; }); qi = Q.indexOf(cur); drawQ(); saveSess(); return toast(n - Q.length ? `Removed ${n - Q.length} duplicate${n - Q.length > 1 ? 's' : ''}` : 'No duplicates'); }
   if (a === 'qclear') { Q.length = qi + 1; drawQ(); return toast('Up Next cleared'); }
   if (a === 'libadd') { const k = c.dataset.lk, on = libToggle(k, { kind: k.slice(0, -1), id: c.dataset.id, title: c.dataset.t, sub: c.dataset.sub, thumb: c.dataset.th }); c.innerHTML = on ? ic('check', 18) + 'In Library' : ic('plus', 18) + 'Add to Library'; return toast(on ? 'Added to Library' : 'Removed from Library'); }
   if (a === 'taste') { const w = document.createElement('div'); w.id = 'wel'; document.body.append(w); return pickGenres(w, () => { w.classList.add('out'); setTimeout(() => w.remove(), 600); toast('Music taste saved'); }); }
@@ -582,7 +616,7 @@ function marq(el) {                      // text wider than its box scrolls back
   el.classList.remove('mq'); el.style.removeProperty('--mqd'); if (!el.clientWidth) return;
   requestAnimationFrame(() => { const d = i.scrollWidth - el.clientWidth; if (d > 6) { el.style.setProperty('--mqd', d + 'px'); el.style.setProperty('--mqt', (d / 26 + 3.4).toFixed(1) + 's'); el.classList.add('mq'); } });
 }
-const marqAll = () => { marq($('#nt')); marq($('#na')); const l = $('#nplyt'); if (l && !l.querySelector('.wd')) marq(l); };
+const marqAll = () => { marq($('#nt')); marq($('#na')); marq($('#lyt')); marq($('#lya')); const l = $('#nplyt'); if (l && !l.querySelector('.wd')) marq(l); };
 function updLine() {
   const el = $('#nplyt'), box = $('#nplyl'); if (!el) return; const t = Q[qi];
   if (!t || !t.lyr || !L.length) { box.hidden = true; return; } box.hidden = false;
@@ -650,6 +684,24 @@ V.addEventListener('click', e => { const b = e.target.closest('[data-jump]'); if
 V.addEventListener('change', e => { const s = e.target.closest('[data-kq]'); if (!s) return; S[s.dataset.kq] = s.value; saveS(); SC.clear(); if (/^ly/.test(s.dataset.kq)) { if (s.value === 'orig') S.lyDual = 0; drawLy(); } V.querySelectorAll(`[data-kq="${s.dataset.kq}"]`).forEach(x => x.value = s.value); toast('Saved'); });
 const _apply = window.applySet; window.applySet = function () { _apply(); document.body.classList.toggle('rm', !!S.rm); };
 
+/* ---------- resume where you left off + gestures ---------- */
+let RESUME = null;
+function saveSess() { if (!Q.length || qi < 0) return; J.set('koom.sess', { u: Q.slice(0, 100).map(t => t.url), i: Math.min(qi, 99), t: Math.floor(A.currentTime || 0) }); persist(); }
+setInterval(() => { if (!A.paused) saveSess(); }, 5000); addEventListener('pagehide', saveSess); A.addEventListener('pause', saveSess);
+const _pl2 = window.play; window.play = function () { RESUME = null; return _pl2.apply(this, arguments); };
+{ const _tf = window.toggleFav; window.toggleFav = function () { navigator.vibrate && navigator.vibrate(10); return _tf.apply(this, arguments); }; }
+function restoreSession() {
+  const ss = J.get('koom.sess', null); if (!ss || !ss.u || !ss.u.length) return;
+  const T = ss.u.map(u => TM.get(u) && TM.get(u).t), cur = T[ss.i] || T.find(Boolean), tr = T.filter(Boolean); if (!cur) return;
+  Q = tr; qi = tr.indexOf(cur); RESUME = { t: T[ss.i] ? ss.t || 0 : 0 }; ui(); drawQ(); setPP();
+}
+all('.pp').forEach(b => b.addEventListener('click', e => { if (RESUME && Q[qi] && !A.getAttribute('src')) { e.stopImmediatePropagation(); const t = RESUME.t; RESUME = null; play(qi, t); } }, true));
+{ const np = $('#np'); let y0 = 0, dy = 0, on = 0;       // swipe the artwork down to close the player
+  np.addEventListener('touchstart', e => { if (np.classList.contains('lyf') || !e.target.closest('.nccov,.npfrom') || np.scrollTop > 0) return; y0 = e.touches[0].clientY; dy = 0; on = 1; }, { passive: true });
+  np.addEventListener('touchmove', e => { if (!on) return; dy = e.touches[0].clientY - y0; if (dy > 0) { np.style.transition = 'none'; np.style.transform = `translateY(${dy * .85}px)`; np.style.opacity = 1 - Math.min(.5, dy / 600); } }, { passive: true });
+  np.addEventListener('touchend', () => { if (!on) return; on = 0; np.style.transition = 'transform .28s ease, opacity .28s'; const reset = () => { np.style.transform = ''; np.style.opacity = ''; np.style.transition = ''; };
+    if (dy > 120) { np.style.transform = 'translateY(100%)'; setTimeout(() => { $('.npx').click(); reset(); }, 230); } else { np.style.transform = ''; np.style.opacity = ''; setTimeout(() => np.style.transition = '', 300); } }); }
+
 /* ---------- Now Playing (Apple-style) ---------- */
 const SVG = {
   quote: '<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M4 3h16a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-7l-5 4v-4H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm4.2 4.2c-1 .6-1.7 1.7-1.7 3.1h2.2v2.4H5.9v-2.1c0-2 .9-3.4 2.3-4.2zm5.6 0c-1 .6-1.7 1.7-1.7 3.1h2.2v2.4h-2.8v-2.1c0-2 .9-3.4 2.3-4.2z" fill-rule="evenodd"/></svg>',
@@ -670,7 +722,7 @@ function buildNP() {
   const vr = npl.querySelector('.vrow'); vr.querySelector('.vi').innerHTML = SVG.spk; vr.insertAdjacentHTML('beforeend', `<span class="vi2">${SVG.spk2}</span>`);
   npl.querySelector('.ctl .pv').innerHTML = SVG.rew; npl.querySelector('.ctl .nx').innerHTML = SVG.fwd;
   npl.insertAdjacentHTML('beforeend', `<div class="npbot"><button class="ib npb" id="npbl" aria-label="Lyrics">${SVG.quote}</button><div class="pill2"><button id="npq" aria-label="Audio quality">${SVG.phones}</button><i></i><button id="npdl" aria-label="Download">${ic('dl', 24)}</button></div><button class="ib npb" id="npqq" aria-label="Up next">${SVG.list}</button></div><div class="npdev" id="npdev"></div>`);
-  document.querySelector('.segrow').insertAdjacentHTML('afterend', `<div class="lymodes" id="lymodes">${LMODES.map(([k, l]) => `<button data-lm="${k}">${l}</button>`).join('')}<button data-lm="dual" title="Show original and translation together">Both</button></div><div class="qmode" id="qmode" hidden><button class="ib" id="qshf" aria-label="Shuffle">${ic('shuf', 22)}</button><button class="ib" id="qrpt" aria-label="Repeat">${ic('rep', 22)}</button><button class="btn2" data-act="qsave">Save as playlist</button><button class="btn2" data-act="qclear">Clear</button></div>`);
+  document.querySelector('.segrow').insertAdjacentHTML('afterend', `<div class="lymodes" id="lymodes">${LMODES.map(([k, l]) => `<button data-lm="${k}">${l}</button>`).join('')}<button data-lm="dual" title="Show original and translation together">Both</button></div><div class="qmode" id="qmode" hidden><button class="ib" id="qshf" aria-label="Shuffle">${ic('shuf', 22)}</button><button class="ib" id="qrpt" aria-label="Repeat">${ic('rep', 22)}</button><button class="btn2" data-act="qshufup">Shuffle Up Next</button><button class="btn2" data-act="qdedupe">Remove duplicates</button><button class="btn2" data-act="qsave">Save as playlist</button><button class="btn2" data-act="qclear">Clear</button></div>`);
   const np = $('#np');
   $('#npbl').onclick = $('#nplyl').onclick = () => { np.classList.add('lyf'); seg(true); };
   $('#npqq').onclick = () => { np.classList.add('lyf'); seg(false); };
@@ -696,7 +748,7 @@ let KPL = null; const _pf = window.playFrom; window.playFrom = function (p) { KP
 const _op = window.openNP; window.openNP = function () { const r = _op.apply(this, arguments); requestAnimationFrame(() => requestAnimationFrame(marqAll)); return r; };
 let _rz; addEventListener('resize', () => { clearTimeout(_rz); _rz = setTimeout(marqAll, 200); });
 const _seg = window.seg;
-window.seg = function (l) { _seg(l); const a = $('#lymodes'), b = $('#qmode'); if (a) a.hidden = !l; if (b) b.hidden = !!l; if (l) lmSync(); };
+window.seg = function (l) { _seg(l); requestAnimationFrame(() => requestAnimationFrame(marqAll)); const a = $('#lymodes'), b = $('#qmode'); if (a) a.hidden = !l; if (b) b.hidden = !!l; if (l) lmSync(); };
 V.addEventListener('click', e => { if (e.target.closest('[data-st="lyDual"]')) setTimeout(() => { drawLy(); }, 60); });
 
 /* ---------- boot ---------- */
@@ -707,7 +759,7 @@ V.addEventListener('click', e => { if (e.target.closest('[data-st="lyDual"]')) s
   const mt = document.createElement('header'); mt.className = 'mtop'; mt.innerHTML = `<div><b>${APP.name}</b><small>${APP.tagline}</small></div><a class="av" href="#/settings" aria-label="Profile"></a>`; V.parentNode.insertBefore(mt, V);
   if (S.pf === undefined) S.pf = 1; if (S.skip === undefined) S.skip = 1; saveS();
   buildNP();
-  P = []; buildU(); applySet(); $('#bt').textContent = 'Not Playing';
+  P = []; buildU(); applySet(); $('#bt').textContent = 'Not Playing'; restoreSession();
   [API_CONFIG.MUSIC_API_URL, API_CONFIG.STREAM_API_URL].forEach(u => { if (!real(u)) return; const l = document.createElement('link'); l.rel = 'preconnect'; l.href = new URL(u).origin; document.head.append(l); http(u, '/health', { ttl: 600000 }).catch(() => { }); });   // wake the services + open the connections early
   ['https://i.ytimg.com', 'https://lh3.googleusercontent.com'].forEach(h => { const l = document.createElement('link'); l.rel = 'preconnect'; l.href = h; document.head.append(l); });
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || /^(localhost|127\.)/.test(location.hostname))) navigator.serviceWorker.register('sw.js').catch(() => { });
