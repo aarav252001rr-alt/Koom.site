@@ -87,7 +87,7 @@ function norm(x, d = {}) {
   let thumb = thumbOf(x, 320) || d.thumb || '', big = thumbOf(x, 800) || thumb; if (!thumb && vid) thumb = big = `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`;
   const yr = x.year || x.releaseYear || '';
   const sub = k === 'album' ? [artist, yr].filter(Boolean).join(' · ') : k === 'artist' ? (x.subscribers || 'Artist') : k === 'playlist' ? (nm(x.author || x.owner || x.subtitle) || 'Playlist') : artist;
-  return { kind: k, id, title, artist, artistId: (A && A[0] && (A[0].id || A[0].browseId)) || x.artistId || x.channelId || d.artistId || '', album, albumId: (al && (al.id || al.browseId)) || x.albumId || d.albumId || '', thumb, big, dur: secs(x.duration_seconds ?? x.durationSeconds ?? x.lengthSeconds ?? x.length ?? x.duration), sub, rank: x.rank || x.position || 0 };
+  return { kind: k, id, title, artist, artists: (A ? A.map(a => ({ n: nm(a), id: a.id || a.browseId || '' })).filter(a => a.n) : artist ? [{ n: artist, id: x.artistId || x.channelId || d.artistId || '' }] : []), artistId: (A && A[0] && (A[0].id || A[0].browseId)) || x.artistId || x.channelId || d.artistId || '', album, albumId: (al && (al.id || al.browseId)) || x.albumId || d.albumId || '', thumb, big, dur: secs(x.duration_seconds ?? x.durationSeconds ?? x.lengthSeconds ?? x.length ?? x.duration), sub, rank: x.rank || x.position || 0 };
 }
 function extractSections(d, def) {
   const out = [], list = a => a.map(i => norm(i)).filter(Boolean), K = ['contents', 'items', 'results', 'songs', 'tracks'];
@@ -111,7 +111,7 @@ const flat = d => extractSections(d, '').flatMap(s => s.items);
 /* ---------- tracks / lists ---------- */
 function reg(x) {
   const url = 'yt:' + x.id, e = TM.get(url); if (e) return e.t;
-  const t = { url, tags: {}, alt: '', c: { title: x.title, artist: x.artist, album: x.album, cover: x.thumb, big: x.big, duration: x.dur, videoId: x.id, artistId: x.artistId, albumId: x.albumId } };
+  const t = { url, tags: {}, alt: '', c: { title: x.title, artist: x.artist, album: x.album, cover: x.thumb, big: x.big, artists: x.artists, duration: x.dur, videoId: x.id, artistId: x.artistId, albumId: x.albumId } };
   TM.set(url, { t, p: null }); return t;
 }
 function mkList(tracks, name) {
@@ -265,11 +265,16 @@ const trackPage = (d, kick, my, key, rid) => {
 };
 
 /* ---------- views ---------- */
+const quickLinks = () => `<div class="qlinks">${[['#/trending', 'bolt', 'Trending'], ['#/new', 'refresh', 'New releases'], ['#/browse', 'logo', 'Browse'], ['#/library', 'lib', 'Library'], ['#/stats', 'clock', 'Insights']].map(([h, i, l]) => `<a href="${h}">${ic(i, 18)}<span>${l}</span></a>`).join('')}</div>`;
+function homeHero() {
+  const cont = Q[qi] || byId('~hist').tracks[0]; if (!cont) return '';
+  return `<div class="chero"><img class="chbg" src="${esc(cover(cont))}" alt=""><div class="chin"><img class="chart" src="${esc(cover(cont))}" alt="" width="84" height="84"><div class="cht"><span>${Q[qi] ? 'Continue listening' : 'Play it again'}</span><b>${esc(title(cont))}</b><small>${esc(artist(cont))}</small></div><button class="pill pri chp" data-act="hplay" aria-label="Play">${ic('play', 22)}</button></div></div>`;
+}
 async function showHome() {
-  view = 'home'; const my = RT, h = new Date().getHours(), g = h < 5 || h >= 18 ? 'Good evening' : h < 12 ? 'Good morning' : 'Good afternoon';
-  const head = `<h1 class="lt">${g}, ${esc(NAME())}</h1><p class="lead">${APP.tagline}</p>`, rc = byId('~hist').tracks.slice(0, 12);
+  view = 'home'; const my = RT, h = new Date().getHours(), g = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : h < 21 ? 'Good evening' : 'Good night';
+  const head = `<h1 class="lt">${g}, ${esc(NAME())}</h1><p class="lead">${esc(APP.tagline)}</p>` + quickLinks(), hero = homeHero(), rc = byId('~hist').tracks.slice(0, 12);
   const recent = rc.length ? sh('Recently Played', '<a href="#/history">See All</a>') + `<div class="hr">${rc.map((t, i) => `<div class="card rc" data-i="${i}" data-u="${esc(t.url)}" tabindex="0" role="button"><div class="art"><img src="${esc(cover(t))}" alt="" loading="lazy"></div><b>${esc(title(t))}</b><small>${esc(artist(t))}</small></div>`).join('')}</div>` : '';
-  setV(head + skel('cards'), my);
+  setV(head + hero + skel('cards'), my);
   const gs = J.get('koom.genres', []).slice(0, 3).map(g => ['Made For You · ' + g, '/search', '', { q: g + ' mix', filter: 'playlists', limit: 12 }]);
   const E = [['Quick Picks', '/home', '', { limit: 20 }], ...gs, ['Trending Now', '/charts', '#/trending'], ['New Releases', () => mRaw('/new-releases').then(r => r.matched ? r.data : Promise.reject(new Error('none'))), '#/new']];
   const R = await Promise.allSettled(E.map(e => typeof e[1] === 'function' ? e[1]() : mApi(e[1], e[3])));
@@ -282,8 +287,8 @@ async function showHome() {
       body += sh(esc(s.title), j === 0 && E[i][2] ? `<a href="${E[i][2]}">See All</a>` : '') + cards(s.items.slice(0, 20), s.title);
     });
   });
-  if (!ok) return setV(head + recent + errBox(R[0].reason), my);
-  setV(head + recent + (body || '<div class="msg">Nothing to show yet.</div>'), my);
+  if (!ok) return setV(head + hero + recent + errBox(R[0].reason), my);
+  setV(head + hero + recent + (body || '<div class="msg">Nothing to show yet.</div>'), my);
 }
 async function showTrend() { view = 'trending'; await simple('Trending', ['/trending', '/charts'], 'Trending', 1); }
 async function showNew() {
@@ -319,8 +324,8 @@ const SQ = { q: '', f: 'all', items: [], page: 1, done: 1, busy: 0, io: null }, 
 const KL = { artist: 'Artists', album: 'Albums', playlist: 'Playlists' };
 function showSearch() {
   view = 'search'; SQ.io && SQ.io.disconnect();
-  V.innerHTML = `<h1 class="lt">Search</h1><div class="sw2"><input class="sbox" id="sq" placeholder="Search songs, artists, albums, playlists..." aria-label="Search" autocomplete="off"><div class="sug" id="sug" hidden></div></div><div class="stabs" id="stabs">${TABS.map(([k, l]) => `<button data-f="${k}" class="${SQ.f === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="sr"></div><div id="smore"></div>` + footer();
-  const s = $('#sq'); s.value = SQ.q; let tm;
+  V.innerHTML = `<h1 class="lt">Search</h1><div class="sw2"><input class="sbox" id="sq" placeholder="Search songs, artists, albums, playlists..." aria-label="Search" autocomplete="off"><button class="mic" id="smic" aria-label="Voice search" type="button"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button><div class="sug" id="sug" hidden></div></div><div class="stabs" id="stabs">${TABS.map(([k, l]) => `<button data-f="${k}" class="${SQ.f === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="sr"></div><div id="smore"></div>` + footer();
+  const s = $('#sq'); s.value = SQ.q; let tm; { const mic = $('#smic'); if (mic) mic.onclick = () => voiceSearch(mic); }
   s.oninput = () => { sqv = s.value; clearTimeout(tm); const q = s.value.trim(); if (q.length < 2) { $('#sug').hidden = true; return; } tm = setTimeout(async () => { try { const d = await mApi('/suggestions', { q }), a = (Array.isArray(d) ? d : d.suggestions || d.results || []).map(x => typeof x === 'string' ? x : x.text || x.query || x.title).filter(Boolean).slice(0, 8); if (s.value.trim() !== q) return; $('#sug').innerHTML = a.map(x => `<button data-s="${esc(x)}">${esc(x)}</button>`).join(''); $('#sug').hidden = !a.length; } catch (e) { } }, 400);
   };
   s.onkeydown = e => { if (e.key === 'Enter') runSearch(s.value.trim()); };
@@ -362,7 +367,7 @@ function welcome() {
     const w = document.createElement('div'); w.id = 'wel'; w.setAttribute('role', 'dialog'); w.setAttribute('aria-label', 'Welcome to KOOM');
     w.innerHTML = `${WBG}<div class="wc"><img class="wlogo" src="icon-192.png" alt="" width="84" height="84"><div class="wl">${APP.name}</div><p class="wt">${APP.tagline}</p>${wdots(1)}<h1>Welcome to ${APP.name}</h1><p class="ws">What should we call you?</p>
       <label class="wfield"><input id="wn" maxlength="30" placeholder="Your name" aria-label="Your name" autocomplete="given-name" autocapitalize="words" enterkeyhint="go" spellcheck="false"><span class="wline"></span></label>
-      <p class="whint" id="whint">Stored only on this device</p><button class="pill pri wbtn" id="wgo" disabled>Continue</button></div>`;
+      <p class="whint" id="whint">Stored only on this device</p><button class="pill pri wbtn" id="wgo" disabled>Continue</button></div>${wcredit()}`;
     document.body.append(w); const i = $('#wn'), btn = $('#wgo'), hint = $('#whint'); setTimeout(() => i.focus(), 500);
     mApi('/trending').then(d => { const a = flat(d).filter(x => x.thumb).slice(0, 8); if (a.length) $('.wbg').innerHTML = a.map(x => `<img src="${esc(x.thumb)}" alt="">`).join(''); }).catch(() => { });
     i.oninput = () => { btn.disabled = !i.value.trim(); hint.textContent = 'Stored only on this device'; hint.classList.remove('bad'); };
@@ -371,35 +376,120 @@ function welcome() {
     btn.onclick = go; i.onkeydown = e => { if (e.key === 'Enter') go(); };
   });
 }
-const SOC = [['instagram', 'Instagram', 'https://instagram.com/', 'IG'], ['github', 'GitHub', 'https://github.com/', 'GH'], ['youtube', 'YouTube', 'https://youtube.com/@', 'YT'], ['x', 'X / Twitter', 'https://x.com/', 'X']];
-const socials = () => SOC.map(([k, n, b, ab]) => { let v = CREATOR[k]; if (!real(v)) return null; v = String(v).trim(); const u = /^https?:\/\//i.test(v) ? v : b + v.replace(/^@/, ''); return /^https?:\/\//i.test(u) ? { n, u, ab } : null; }).filter(Boolean);
-const by = () => real(CREATOR.name) ? ' by ' + esc(CREATOR.name) : '';
-const footer = () => `<footer class="kfoot"><div><b>${APP.name}</b><small>${APP.tagline}</small></div><nav><a href="#/about">About</a><a href="#/privacy">Privacy</a><a href="#/terms">Terms</a>${real(CREATOR.email) ? `<a href="mailto:${esc(CREATOR.email)}">Contact</a>` : '<a href="#/about">Contact</a>'}</nav><div class="socs">${socials().map(s => `<a class="soc" href="${esc(s.u)}" target="_blank" rel="noopener noreferrer" aria-label="${s.n}" title="${s.n}">${s.ab}</a>`).join('')}</div><p>© ${APP.year} ${APP.name} · Made with ❤️${by()}</p></footer>`;
-function showAbout() {
-  view = 'about'; const s = socials();
-  setV(`<h1 class="lt">About ${APP.name}</h1><p class="lead">${APP.tagline}</p><div class="doc"><p>${APP.name} is a modern music discovery and listening interface designed to make finding and enjoying music simple.</p><p>Version: ${APP.version}</p>${real(CREATOR.name) || s.length ? `<h2>Meet the Creator</h2>${real(CREATOR.name) ? `<p><b>${esc(CREATOR.name)}</b></p>` : ''}<div class="btns">${s.map(x => `<a class="pill" href="${esc(x.u)}" target="_blank" rel="noopener noreferrer">${x.n}</a>`).join('')}</div>` : ''}<p>Made with ❤️${by()}</p><p><a href="#/privacy">Privacy Policy</a> · <a href="#/terms">Terms of Service</a></p></div>`);
-}
-const contact = () => real(CREATOR.email) ? `<a href="mailto:${esc(CREATOR.email)}">${esc(CREATOR.email)}</a>` : 'the contact details listed on the <a href="#/about">About</a> page';
-const LEGAL = {
-  privacy: ['Privacy Policy', [
-    ['What KOOM stores', `${APP.name} has no accounts. Everything it remembers stays in your browser’s local storage on your device: the display name you enter, your theme, language and playback settings, liked songs, your own playlists, recently played songs (up to 50), and a small cache of song details (title, artist, artwork link) needed to show those lists.`],
-    ['What leaves your device', 'To work, KOOM sends requests to two services configured by the operator: a music data service (your search text, search suggestions, and the IDs of songs, artists, albums and playlists you open) and a stream service (the YouTube link of a song you choose to play). These requests necessarily include your IP address and browser details, and an API key. Your display name, liked songs, playlists and listening history are not sent to either service. If you choose English lyrics, the lyric text of that song is sent to Google Translate (translate.googleapis.com) and the result is kept on your device. Hinglish (Roman) lyrics are converted entirely on your device. Artwork is loaded from third-party image servers (such as Google and YouTube), and fonts are loaded from Google Fonts, which also see your IP address.'],
-    ['Cookies and analytics', 'KOOM itself sets no cookies and includes no analytics or advertising tools. Third-party services above may log requests under their own policies.'],
-    ['Retention and your choices', 'Local data stays until you clear it. You can change your name, clear recently played, remove liked songs or reset settings in Settings, or erase everything by clearing this site’s data in your browser.'],
-    ['Children', 'KOOM is not directed to children under 13 and does not knowingly collect personal information from anyone.'],
-    ['Contact', `Questions about this policy: ${contact()}.`]]],
-  terms: ['Terms of Service', [
-    ['Using KOOM', 'KOOM is a personal music discovery and listening interface. Use it lawfully and do not misuse, overload or attempt to disrupt the services it connects to.'],
-    ['Third-party content', 'Music, videos, artwork, lyrics and metadata are provided by third parties and belong to their respective owners. KOOM does not own or host this content and claims no rights to it.'],
-    ['Copyright and your responsibility', 'You are responsible for making sure your use of any content complies with copyright law and the terms of the content providers in your region.'],
-    ['Availability and limits', 'The service depends on external APIs and may be slow, limited or unavailable at any time, and features may change or be removed without notice.'],
-    ['Local profile', 'Your display name and library are stored only on your device; clearing browser data removes them.'],
-    ['Disclaimer', 'KOOM is provided “as is” without warranties of any kind, and to the extent permitted by law its operator is not liable for losses arising from its use.'],
-    ['Contact', `Questions about these terms: ${contact()}.`]]]
+/* ---------- social links: real brand logos, any number of accounts ---------- */
+/* Brand marks (24x24 viewBox). `bg` = tile colour, `fg` = glyph colour. */
+const BRAND = {
+  instagram: { n: 'Instagram', bg: 'linear-gradient(45deg,#f9ce34,#ee2a7b 55%,#6228d7)', fg: '#fff', url: 'https://instagram.com/', at: 1,
+    svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2"/><circle cx="12" cy="12" r="4.1"/><circle cx="17.3" cy="6.7" r="1.15" fill="currentColor" stroke="none"/></svg>' },
+  youtube: { n: 'YouTube', bg: '#ff0000', fg: '#fff', url: 'https://youtube.com/', at: 1,
+    svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>' },
+  github: { n: 'GitHub', bg: '#24292f', fg: '#fff', url: 'https://github.com/',
+    svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>' },
+  x: { n: 'X', bg: '#000', fg: '#fff', url: 'https://x.com/', at: 1,
+    svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>' },
+  telegram: { n: 'Telegram', bg: '#229ed9', fg: '#fff', url: 'https://t.me/', at: 1,
+    svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.91 3.79 20.3 20.84c-.25 1.21-.98 1.5-2 .94l-5.5-4.07-2.66 2.57c-.3.3-.55.56-1.1.56-.72 0-.6-.27-.84-.95L6.3 13.7.85 12c-1.18-.35-1.19-1.16.26-1.75l21.26-8.2c.97-.43 1.9.24 1.53 1.73z"/></svg>' },
+  whatsapp: { n: 'WhatsApp', bg: '#25d366', fg: '#fff', url: 'https://wa.me/',
+    svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>' },
+  linkedin: { n: 'LinkedIn', bg: '#0a66c2', fg: '#fff', url: 'https://linkedin.com/in/',
+    svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>' },
+  facebook: { n: 'Facebook', bg: '#1877f2', fg: '#fff', url: 'https://facebook.com/',
+    svg: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 22v-8.2h2.8l.5-3.3h-3.3V8.4c0-1 .4-1.7 1.8-1.7h1.6V3.8c-.3 0-1.3-.2-2.4-.2-2.5 0-4.1 1.5-4.1 4.2v2.7H7.6v3.3h2.8V22z"/></svg>' },
+  website: { n: 'Website', bg: '#3a3a44', fg: '#fff', url: 'https://',
+    svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.9 5.6 3.9 9s-1.3 6.4-3.9 9c-2.6-2.6-3.9-5.6-3.9-9S9.4 5.6 12 3z"/></svg>' },
+  email: { n: 'Email', bg: '#ff2d55', fg: '#fff', url: 'mailto:',
+    svg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 8 8 5.5L20 8"/></svg>' }
 };
-function showLegal(k) { view = k; const [t, s] = LEGAL[k]; setV(`<h1 class="lt">${t}</h1><p class="lead">Last updated: October 2026 · ${APP.name} v${APP.version}</p><div class="doc">${s.map(([h, p]) => `<h2>${h}</h2><p>${p}</p>`).join('')}</div>`); }
+
+const isReal = v => !!v && !/^\s*$|^YOUR_/i.test(String(v));
+function socUrl(type, h) {
+  h = String(h).trim(); if (/^(https?:|mailto:|tel:)/i.test(h)) return h;
+  const c = h.replace(/^@/, ''), b = BRAND[type] || BRAND.website;
+  if (type === 'youtube') return /^UC[\w-]{20,}$/.test(c) ? 'https://youtube.com/channel/' + c : 'https://youtube.com/@' + c;
+  if (type === 'whatsapp') return 'https://wa.me/' + c.replace(/[^\d]/g, '');
+  if (type === 'website') return 'https://' + c; if (type === 'email') return 'mailto:' + c;
+  return b.url + c;
+}
+function socials() {                                   // CREATOR.socials = [{type, label, handle}, …] (+ the old single-field style)
+  const out = [], add = (type, label, handle) => { if (!isReal(handle) || !BRAND[type]) return; const u = socUrl(type, handle); if (/^(https?:|mailto:)/.test(u) && !out.some(o => o.url === u)) out.push({ type, label: label || '', handle: String(handle).trim(), url: u }); };
+  (CREATOR.socials || []).forEach(s => add(s.type, s.label, s.handle || s.url));
+  ['instagram', 'youtube', 'github', 'x', 'telegram', 'whatsapp', 'linkedin', 'facebook', 'website'].forEach(k => [].concat(CREATOR[k] || []).forEach(h => typeof h === 'object' ? add(k, h.label, h.handle || h.url) : add(k, '', h)));
+  return out;
+}
+const shown = s => { const h = s.handle; if (/^https?:/i.test(h)) { try { const u = new URL(h); return (u.host + u.pathname).replace(/\/$/, ''); } catch (e) { return h; } } if (s.type === 'email') return h.replace(/^mailto:/, ''); return BRAND[s.type].at ? '@' + h.replace(/^@/, '') : h; };
+const logo = (type, size = 40) => { const b = BRAND[type]; return `<span class="blogo2" style="width:${size}px;height:${size}px;background:${b.bg};color:${b.fg}"><span style="width:${Math.round(size * .56)}px;height:${Math.round(size * .56)}px">${b.svg}</span></span>`; };
+const socIcons = (size = 34) => socials().map(s => `<a class="soc2" href="${esc(s.url)}" ${s.type === 'email' ? '' : 'target="_blank" rel="noopener noreferrer"'} aria-label="${esc(BRAND[s.type].n + (s.label ? ' (' + s.label + ')' : ''))}" title="${esc(BRAND[s.type].n + (s.label ? ' · ' + s.label : ''))}">${logo(s.type, size)}</a>`).join('');
+const creatorName = () => isReal(CREATOR.name) ? String(CREATOR.name).trim() : '', creatorEmail = () => isReal(CREATOR.email) ? String(CREATOR.email).trim() : '';
+const by = () => creatorName() ? ' by ' + esc(creatorName()) : '';
+const upd = () => esc(APP.updated || String(APP.year));
+const ctc = () => creatorEmail() ? `<a href="mailto:${esc(creatorEmail())}">${esc(creatorEmail())}</a>` : 'the <a href="#/contact">Contact</a> page';
+const footer = () => `<footer class="kfoot"><div class="kf1"><img src="icon-192.png" alt="" width="36" height="36"><div><b>${esc(APP.name)}</b><small>${esc(APP.tagline)}</small></div></div><nav><a href="#/about">About</a><a href="#/privacy">Privacy</a><a href="#/terms">Terms</a><a href="#/contact">Contact</a></nav><div class="socs">${socIcons(34)}</div><p>© ${APP.year} ${esc(APP.name)} · Made with ❤️${by()} · v${esc(APP.version)}</p></footer>`;
+
+function showAbout() {
+  view = 'about'; const s = socials(), n0 = creatorName();
+  const F = [['Discover', 'Home, Browse, Trending, New Releases and Made For You, tuned to your taste.'], ['Listen your way', 'A queue you can drag, autoplay radio, sleep timer, speed and quality control.'], ['Lyrics that follow along', 'Synced lyrics in the original language, in Hinglish or in English.'], ['Your library', 'Liked songs, playlists, albums, artists and listening insights, all on your device.'], ['Private by design', 'No account, no ads and no tracking. Your library never leaves your device.'], ['Install it', 'Add it to your home screen and it opens like a native app.']];
+  setV(`<div class="abh"><img src="icon-512.png" alt="" width="96" height="96"><div><h1 class="lt">${esc(APP.name)}</h1><p class="lead">${esc(APP.tagline)}</p></div></div><div class="doc">
+  <p class="big">${esc(APP.name)} is a fast, modern music app that runs in your browser and installs like a native app. Search millions of songs, build your own library, follow lyrics in your language and take your music anywhere, without creating an account.</p>
+  <div class="fgrid">${F.map(([t, d]) => `<div class="fc"><b>${t}</b><p>${d}</p></div>`).join('')}</div>
+  <h2>How it works</h2><p>${esc(APP.name)} combines two independent services: a music data service for search, artists, albums and lyrics, and a streaming service that prepares audio for playback. Everything you save, such as liked songs, playlists, history and settings, stays in your browser.</p>
+  ${n0 || s.length ? `<h2>Meet the creator</h2><div class="cc"><div class="cav">${esc((n0 || APP.name)[0].toUpperCase())}</div><div class="ccb"><b>${esc(n0 || APP.name)}</b>${isReal(CREATOR.role) ? `<span>${esc(CREATOR.role)}</span>` : ''}${isReal(CREATOR.bio) ? `<p>${esc(CREATOR.bio)}</p>` : ''}<div class="socs">${socIcons(40)}</div></div></div>` : ''}
+  <h2>Good to know</h2><p>${esc(APP.name)} is an independent project. It is not affiliated with, endorsed by or sponsored by YouTube, Google, Apple or any record label. Music, videos and artwork belong to their respective owners.</p>
+  <div class="abt"><div><span>Version</span><b>${esc(APP.version)}</b></div><div><span>Last updated</span><b>${upd()}</b></div>${APP.website ? `<div><span>Website</span><b>${esc(String(APP.website).replace(/^https?:\/\//, ''))}</b></div>` : ''}</div>
+  <div class="btns"><button class="pill pri" data-act="shareapp">Share ${esc(APP.name)}</button><a class="pill" href="#/contact">Contact</a><a class="pill" href="#/privacy">Privacy</a><a class="pill" href="#/terms">Terms</a></div></div>`);
+}
+function showContact() {
+  view = 'contact'; const s = socials(), em = creatorEmail(), n0 = creatorName();
+  const rep = em ? `mailto:${em}?subject=${enc(APP.name + ' — problem report')}&body=${enc(`Describe what happened:\n\n\n—\nApp: ${APP.name} ${APP.version}\nBrowser: ${navigator.userAgent}\nTime: ${new Date().toString()}`)}` : '';
+  setV(`<h1 class="lt">Contact</h1><p class="lead">Questions, feedback, collaborations or a bug to report. We’d love to hear from you.</p><div class="doc">
+  ${em ? `<div class="ccard"><div>${logo('email', 54)}</div><div class="cct"><b>Email</b><span>${esc(em)}</span></div><a class="pill pri" href="mailto:${esc(em)}">Send an email</a></div>` : ''}
+  ${s.filter(x => x.type !== 'email').length ? `<h2>Follow &amp; message</h2><div class="sgrid">${s.filter(x => x.type !== 'email').map(x => `<a class="scard" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${logo(x.type, 48)}<div class="sct"><b>${esc(BRAND[x.type].n)}${x.label ? ` <em>${esc(x.label)}</em>` : ''}</b><span>${esc(shown(x))}</span></div>${SVG.chev}</a>`).join('')}</div>` : ''}
+  ${!em && !s.length ? '<div class="msg">Contact details will appear here once they are added to <code>config.js</code>.</div>' : ''}
+  <h2>Helpful to know</h2><div class="fgrid">
+   <div class="fc"><b>Report a problem</b><p>${em ? `<a href="${rep}">Open an email</a> that already includes your app version and browser.` : 'Tell us what happened and include your browser and device.'}</p></div>
+   <div class="fc"><b>Copyright &amp; takedown</b><p>Rights holders can email us with the subject “Copyright” and the details. ${esc(APP.name)} does not host any music.</p></div>
+   <div class="fc"><b>Privacy requests</b><p>Your library lives on your device, so you can erase it at any time in Settings. For anything else, get in touch.</p></div></div>
+  <p class="muted">${n0 ? 'Made with ❤️ by ' + esc(n0) + '. ' : ''}Thank you for helping make ${esc(APP.name)} better.</p></div>`);
+}
+
+/* ---------- legal pages ---------- */
+const sections = list => `<nav class="toc" aria-label="Contents">${list.map(([t], i) => `<a href="#" data-sec="s${i}">${i + 1}. ${t}</a>`).join('')}</nav>` + list.map(([t, h], i) => `<h2 id="s${i}">${i + 1}. ${t}</h2>${h}`).join('');
+const LEGAL = {
+  privacy: () => ['Privacy Policy', sections([
+    ['At a glance', `<ul class="ticks"><li>There are <b>no accounts</b>, no ads and no analytics or tracking tools.</li><li>Your library, playlists, history and settings are stored <b>only on your device</b>.</li><li>To play music, ${esc(APP.name)} sends song and search requests to the services described below.</li><li>You can export or erase everything yourself at any time.</li></ul>`],
+    ['Who we are', `<p>${esc(APP.name)} (“we”, “us”) is an independent music app${creatorName() ? ' created and operated by ' + esc(creatorName()) : ''}. You can reach us through ${ctc()}.</p>`],
+    ['What is stored on your device', `<p>${esc(APP.name)} saves the following in your browser (local storage, IndexedDB and cache storage). None of it is sent to us.</p><div class="tw"><table class="dtab"><tr><th>Information</th><th>Why</th></tr><tr><td>Display name</td><td>To greet you on Home</td></tr><tr><td>Settings and music taste</td><td>To remember your preferences</td></tr><tr><td>Liked songs, playlists, saved albums and artists</td><td>Your library</td></tr><tr><td>Recently played (last 50) and play counts</td><td>Home, history and Insights</td></tr><tr><td>Queue and playback position</td><td>To continue where you left off</td></tr><tr><td>Last 8 searches</td><td>Search suggestions</td></tr><tr><td>Song details and translated lyrics</td><td>To show your lists quickly and avoid repeat requests</td></tr><tr><td>App files and cover images (service worker cache)</td><td>Faster loading and offline start</td></tr></table></div>`],
+    ['Information sent when you use the app', `<p><b>Music data service.</b> When you browse, search or open an artist, album, playlist or lyrics, your device sends the search text or the ID of the item, together with the technical details every web request carries (IP address, browser type and the time of the request). A shared app key identifies the app, not you.</p><p><b>Streaming service.</b> When you play or download a song, your device sends the YouTube link of that song and the chosen quality. The service fetches the audio and relays it to you.</p><p>These services run on cloud infrastructure and keep ordinary server logs (such as IP address, time and requested address) for security and troubleshooting. We do not use them to build profiles or to track you across sites. Your name, library, playlists and history are never sent to them.</p>`],
+    ['Third parties', `<ul class="ticks"><li><b>YouTube and Google.</b> Audio and metadata originate from YouTube. Cover art is loaded straight from Google image hosts, so they can see your IP address and browser details.</li><li><b>Google Fonts</b> supplies the app typeface and receives your IP address when fonts load.</li><li><b>Google Translate</b> receives the text of a song’s lyrics only if you choose English lyrics. Hinglish conversion happens entirely on your device.</li><li><b>Voice search</b> uses your browser’s speech recognition, which may send your audio to the browser maker’s servers (for example Google in Chrome). It runs only after you tap the microphone.</li></ul><p>These companies handle data under their own privacy policies.</p>`],
+    ['Cookies and similar technologies', `<p>${esc(APP.name)} does not set cookies. It uses local storage, IndexedDB, cache storage and a service worker to work quickly and to start offline. Clearing your browser’s site data removes all of it.</p>`],
+    ['Analytics and advertising', `<p>None. We do not use analytics, advertising or tracking SDKs.</p>`],
+    ['How long data is kept', `<p>On-device data stays until you remove it. Server logs are kept by the hosting provider for short, standard periods and then deleted.</p>`],
+    ['Your choices and rights', `<ul class="ticks"><li>Change or remove your name in Settings.</li><li>Clear recently played, search history or your whole library from Library and Settings.</li><li>Export a backup or restore one in Settings, Library &amp; data.</li><li>Erase everything by clearing this site’s data in your browser.</li></ul><p>Because we do not hold an account or profile about you, most access and deletion requests are covered by these on-device controls. For requests about server logs, contact us.</p>`],
+    ['Children', `<p>${esc(APP.name)} is not directed to children under 13 and does not knowingly collect personal information from anyone. There are no accounts and no sign-up.</p>`],
+    ['Security', `<p>Traffic between your device and our services is encrypted with HTTPS. We take reasonable care, but no system is perfectly secure. Note that the app key included in the app is not a secret.</p>`],
+    ['Changes to this policy', `<p>If our practices change, we will update this page and the “last updated” date above.</p>`],
+    ['Contact', `<p>Questions about privacy? Reach us through ${ctc()}.</p>`]])],
+  terms: () => ['Terms of Service', sections([
+    ['Agreement', `<p>By using ${esc(APP.name)} you agree to these Terms. If you do not agree, please do not use the app.</p>`],
+    ['The service', `<p>${esc(APP.name)} is a music discovery and listening interface. It helps you find music and play it through third-party sources. We do not host, store or sell music.</p>`],
+    ['Personal, non-commercial use', `<p>The app is provided for your personal, non-commercial use. You may not resell it, offer it as a service to others or use it to build a competing product without permission.</p>`],
+    ['Acceptable use', `<p>You agree not to:</p><ul class="ticks"><li>break the law or infringe anyone’s rights;</li><li>overload, probe, scrape or disrupt the app or the services it connects to;</li><li>bypass limits, access controls or security measures;</li><li>redistribute or publicly perform content you obtained through the app.</li></ul>`],
+    ['Third-party content and copyright', `<p>Music, videos, lyrics and artwork belong to their respective owners and are accessed from third-party services. ${esc(APP.name)} claims no ownership of that content. You are responsible for making sure your use complies with copyright law and with the terms of those services in your country. Rights holders can send concerns through ${ctc()}.</p>`],
+    ['Downloads', `<p>The download option is for personal offline listening of content you have the right to keep. You are solely responsible for what you download.</p>`],
+    ['Your data', `<p>Your name, library, playlists and settings are stored locally on your device and are covered by the <a href="#/privacy">Privacy Policy</a>. You can export or erase them at any time.</p>`],
+    ['Availability and changes', `<p>The app depends on third-party services and may be slow, limited or unavailable at times. We may change, suspend or remove features without notice.</p>`],
+    ['No affiliation', `<p>${esc(APP.name)} is an independent project and is not affiliated with, endorsed by or sponsored by YouTube, Google, Apple or any record label. Product names and logos are trademarks of their owners.</p>`],
+    ['Disclaimer', `<p>The app is provided “as is” and “as available”, without warranties of any kind, including accuracy, availability, fitness for a particular purpose or non-infringement.</p>`],
+    ['Limitation of liability', `<p>To the fullest extent permitted by law, we are not liable for indirect, incidental or consequential damages, or for loss of data, arising from your use of the app.</p>`],
+    ['Termination', `<p>You may stop using the app at any time. We may restrict access if these Terms are violated or if the service must be changed or closed.</p>`],
+    ['Governing law', `<p>These Terms are governed by the laws that apply where the operator is based, without regard to conflict-of-law rules.</p>`],
+    ['Changes to these Terms', `<p>We may update these Terms. Continued use after an update means you accept the new version. The “last updated” date above shows the latest change.</p>`],
+    ['Contact', `<p>Questions about these Terms? Reach us through ${ctc()}.</p>`]])]
+};
+function showLegal(k) { view = k; const [t, h] = LEGAL[k](); setV(`<h1 class="lt">${t}</h1><p class="lead">Last updated ${upd()} · ${esc(APP.name)} v${esc(APP.version)}</p><div class="doc legal">${h}</div>`); }
+V.addEventListener('click', e => { const a = e.target.closest('[data-sec]'); if (a) { e.preventDefault(); const t = document.getElementById(a.dataset.sec); t && t.scrollIntoView({ behavior: 'smooth', block: 'start' }); } });
+
 window.kProfile = () => `<div class="sg"><h2>Profile</h2><div class="sc">${sr('Display name', 'Shown in your greeting on Home', `<button class="btn2" data-act="editname">${esc(NAME()) || 'Set name'} ✎</button>`)}</div></div>`;
-window.kAbout = () => `<div class="sg"><h2>About</h2><div class="sc">${sr(APP.name + ' · v' + APP.version, APP.tagline, '')}${['about:About', 'privacy:Privacy Policy', 'terms:Terms of Service'].map(x => { const [h, l] = x.split(':'); return sr(l, '', `<a class="btn2" href="#/${h}">Open</a>`); }).join('')}</div></div>`;
+window.kAbout = () => `<div class="sg"><h2>About</h2><div class="sc">${sr(APP.name + ' · v' + APP.version, APP.tagline, '')}${['about:About', 'privacy:Privacy Policy', 'terms:Terms of Service', 'contact:Contact'].map(x => { const [h, l] = x.split(':'); return sr(l, '', `<a class="btn2" href="#/${h}">Open</a>`); }).join('')}</div></div>`;
 window.trackMenu = (t, p, anchor) => {
   const f = FAV.includes(t.url);
   openMenu([{ l: 'Play Next', i: 'next', fn: () => qAdd(t, true) }, { l: 'Add to Queue', i: 'qadd', fn: () => qAdd(t, false) }, { l: f ? 'Remove from Favourites' : 'Add to Favourites', i: f ? 'heartf' : 'heart', fn: () => toggleFav(t) }, { l: 'Add to Playlist…', i: 'plus', fn: () => pickPl(t) }, { l: 'Share', i: 'expand', fn: () => shareTrack(t) },
@@ -434,7 +524,7 @@ document.addEventListener('error', e => { if (e.target.tagName === 'IMG' && e.ta
 const GENRES = ['Bollywood', 'Pop', 'Hip-Hop', 'Punjabi', 'Lo-fi', 'Romantic', 'Rock', 'Indie', 'EDM', 'Devotional', 'Classical', 'K-pop', 'R&B', 'Jazz', 'Sufi', 'Retro'];
 function pickGenres(host, done, step) {
   const sel = new Set(J.get('koom.genres', [])), cnt = () => sel.size ? `${sel.size} selected` : 'Pick a few to get started';
-  host.innerHTML = `${WBG}<div class="wc">${step ? wdots(step) : ''}<h1>Pick what you love</h1><p class="ws">We’ll build Made For You from your taste.</p><div class="chips">${GENRES.map(g => `<button class="chip ${sel.has(g) ? 'on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`).join('')}</div><p class="whint" id="gcnt">${cnt()}</p><button class="pill pri wbtn" id="wg2">Done</button><button class="skip" id="wsk">Skip for now</button></div>`;
+  host.innerHTML = `${WBG}<div class="wc">${step ? wdots(step) : ''}<h1>Pick what you love</h1><p class="ws">We’ll build Made For You from your taste.</p><div class="chips">${GENRES.map(g => `<button class="chip ${sel.has(g) ? 'on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`).join('')}</div><p class="whint" id="gcnt">${cnt()}</p><button class="pill pri wbtn" id="wg2">Done</button><button class="skip" id="wsk">Skip for now</button></div>${step ? wcredit() : ''}`;
   host.onclick = e => { const c = e.target.closest('.chip'); if (c) { c.classList.toggle('on'); sel.has(c.dataset.g) ? sel.delete(c.dataset.g) : sel.add(c.dataset.g); $('#gcnt').textContent = cnt(); } };
   $('#wg2').onclick = () => { J.set('koom.genres', [...sel]); done(); }; $('#wsk').onclick = done;
 }
@@ -469,13 +559,15 @@ async function showMood(p, name) {
 const _route = window.route;
 window.route = function (keep) {
   const m = (location.hash.slice(1) || '/').split('/');
-  if (m[1] === 'browse' || m[1] === 'mood' || m[1] === 'library') { RT++; SQ.io && SQ.io.disconnect(); (m[1] === 'browse' ? showBrowse() : m[1] === 'library' ? showLibrary() : showMood(decodeURIComponent(m[2] || ''), decodeURIComponent(m[3] || ''))); all('[data-k]').forEach(a => a.classList.toggle('act', a.dataset.k === view)); drawSide(); fin(); if (!keep) scrollTo(0, 0); return; }
+  if (['browse', 'mood', 'library', 'contact', 'stats'].includes(m[1])) { RT++; SQ.io && SQ.io.disconnect(); (m[1] === 'browse' ? showBrowse() : m[1] === 'library' ? showLibrary() : m[1] === 'contact' ? showContact() : m[1] === 'stats' ? showStats() : showMood(decodeURIComponent(m[2] || ''), decodeURIComponent(m[3] || ''))); all('[data-k]').forEach(a => a.classList.toggle('act', a.dataset.k === view)); drawSide(); fin(); if (!keep) scrollTo(0, 0); return; }
   return _route(keep);
 };
 const _act2 = window.act;
 window.act = (a, c) => {
   if (a === 'editname') { kAsk('What should we call you?', 'Your name', NAME()).then(n => { if (n) { LS.set('koom.name', n.replace(/\s+/g, ' ').slice(0, 30)); refreshAv(); toast('Name updated'); route(1); } }); return; }
   if (a === 'install') { if (deferredInstall) { deferredInstall.prompt(); return; } return toast(location.protocol === 'http:' && !/^(localhost|127\.)/.test(location.hostname) ? 'Installing needs an https address' : /iPhone|iPad/i.test(navigator.userAgent) ? 'Tap Share, then “Add to Home Screen”' : 'Open the browser menu and choose “Install app”'); }
+  if (a === 'shareapp') { const u = location.href.split('#')[0]; if (navigator.share) navigator.share({ title: APP.name, text: APP.tagline, url: u }).catch(() => { }); else if (navigator.clipboard) navigator.clipboard.writeText(u).then(() => toast('Link copied')); return; }
+  if (a === 'hplay') { if (Q[qi] && A.getAttribute('src')) { if (A.paused) A.play().catch(() => { }); else openNP(); return; } if (RESUME && Q[qi]) { const t = RESUME.t; RESUME = null; return play(qi, t); } const hs = byId('~hist'); if (hs.tracks.length) playFrom(hs, 0); return; }
   if (a === 'newpl') { newPlaylist().then(id => { if (id) location.hash = '#/p/' + id; }); return; }
   if (a === 'qsave') { if (!Q.length) return toast('Queue is empty'); newPlaylist(Q.filter(t => t.c && t.c.videoId).map(t => t.url)); return; }
   if (a === 'shclr') { J.set('koom.sh', []); toast('Search history cleared'); return route(1); }
@@ -509,8 +601,31 @@ function libToggle(k, it) { const L = LIB(); L[k] = L[k] || []; const i = L[k].f
 function libBtn(k, id, title, sub, thumb) { return `<button class="pill" data-act="libadd" data-lk="${k}" data-id="${esc(id)}" data-t="${esc(title)}" data-sub="${esc(sub)}" data-th="${esc(thumb)}">${inLib(k, id) ? ic('check', 18) + 'In Library' : ic('plus', 18) + 'Add to Library'}</button>`; }
 function showLibrary() {
   view = 'library'; const L = LIB(), my = RT, sec = (t, a) => a.length ? sh(t) + `<div class="hr">${a.map(x => cardX(x)).join('')}</div>` : '';
-  setV(`<h1 class="lt">Library</h1><div class="bgrid"><a class="bt t1" href="#/fav">Liked Songs<small>${FAV.length} songs</small></a><a class="bt t2" href="#/history">Recently Played<small>${HIST.length} songs</small></a></div>` + myPl() + sec('Albums', L.albums) + sec('Artists', L.artists) + sec('Saved playlists', L.playlists) + '', my);
+  setV(`<h1 class="lt">Library</h1><div class="bgrid"><a class="bt t1" href="#/fav">Liked Songs<small>${FAV.length} songs</small></a><a class="bt t2" href="#/history">Recently Played<small>${HIST.length} songs</small></a><a class="bt t3" href="#/stats">Insights<small>Top songs &amp; artists</small></a></div>` + myPl() + sec('Albums', L.albums) + sec('Artists', L.artists) + sec('Saved playlists', L.playlists) + '', my);
 }
+function showStats() {
+  view = 'stats'; const my = RT, P0 = PLAYS || {}, ents = Object.entries(P0).filter(([u, n]) => n > 0 && TM.get(u)).sort((a, b) => b[1] - a[1]), total = Object.values(P0).reduce((a, n) => a + n, 0);
+  const head = '<h1 class="lt">Insights</h1><p class="lead">Your listening, summarised on your device.</p>';
+  if (!total || !ents.length) return setV(head + '<div class="msg">Play a few songs and your top songs and artists will show up here.</div>', my);
+  const AR = {}; ents.forEach(([u, n]) => { const t = TM.get(u).t, a0 = (t.c.artists && t.c.artists[0]) || { n: (t.c.artist || '').split(',')[0].trim(), id: t.c.artistId || '' }; if (!a0.n) return; const o = AR[a0.n] = AR[a0.n] || { n: 0, id: a0.id, th: cover(t) }; o.n += n; if (!o.id) o.id = a0.id; });
+  const topA = Object.entries(AR).sort((a, b) => b[1].n - a[1].n).slice(0, 10), T = ents.slice(0, 20).map(([u]) => TM.get(u).t), L = mkList(T, 'Top songs'), stat = (v, l) => `<div class="stc"><b>${v}</b><span>${l}</span></div>`;
+  setV(head + `<div class="stg">${stat(total, 'plays')}${stat(ents.length, 'different songs')}${stat(topA[0] ? esc(topA[0][0]) : '—', 'top artist')}</div>` + sh('Top songs') + hdr + T.map((t, i) => row(t, i, L, i + 1)).join('') + (topA.filter(x => x[1].id).length ? sh('Top artists') + `<div class="hr">${topA.filter(x => x[1].id).map(([n, o]) => cardX({ kind: 'artist', id: o.id, title: n, sub: o.n + (o.n > 1 ? ' plays' : ' play'), thumb: o.th })).join('')}</div>` : ''), my);
+}
+const SRC = window.SpeechRecognition || window.webkitSpeechRecognition;
+function voiceSearch(btn) {
+  if (!SRC) return toast('Voice search isn’t supported in this browser'); if (!window.isSecureContext) return toast('Voice search needs an https address');
+  const r = new SRC(); r.lang = S.vl || 'en-IN'; r.interimResults = true; r.maxAlternatives = 1; btn.classList.add('rec');
+  r.onresult = e => { const tx = [...e.results].map(x => x[0].transcript).join(' ').trim(); const q = $('#sq'); if (q) q.value = tx; if (e.results[e.results.length - 1].isFinal && tx) runSearch(tx); };
+  r.onend = () => btn.classList.remove('rec'); r.onerror = ev => { btn.classList.remove('rec'); if (ev.error === 'not-allowed') toast('Allow the microphone to use voice search'); };
+  try { r.start(); } catch (e) { btn.classList.remove('rec'); }
+}
+function netBar(first) {
+  let b = $('#koff');
+  if (!navigator.onLine) { if (!b) { b = document.createElement('div'); b.id = 'koff'; b.setAttribute('role', 'status'); b.textContent = 'You’re offline. Playback and search need a connection.'; document.body.append(b); } }
+  else if (b) { b.remove(); if (!first) toast('Back online'); }
+}
+addEventListener('offline', () => netBar()); addEventListener('online', () => netBar());
+const wcredit = () => { const n = creatorName(), s = socIcons(30); return n || s ? `<div class="wcredit"><span>Made with ❤️${by()}</span><div class="socs">${s}</div></div>` : ''; };
 async function shareTrack(t) { const url = 'https://music.youtube.com/watch?v=' + t.c.videoId; try { if (navigator.share) await navigator.share({ title: title(t) + ' — ' + artist(t), url }); else { await navigator.clipboard.writeText(url); toast('Link copied'); } } catch (e) { } }
 
 /* ---------- lyrics: wrap-safe word fill + smoother animation ---------- */
@@ -670,7 +785,7 @@ window.showSet = function () {
   _showSet();
   const g = [...V.querySelectorAll(':scope > .sg')];     // 0 Profile, 1 Streaming, 2 Downloads, 3 Appearance, 4 Audio, 5 Lyrics, 6 Storage, 7 Shortcuts, 8 About
   if (g.length < 9) return;
-  g[4].querySelector('h2').textContent = 'Playback'; g[6].querySelector('h2').textContent = 'Library & data';
+  g[4].querySelector('h2').textContent = 'Playback'; g[4].querySelector('.sc').insertAdjacentHTML('beforeend', sr('Voice search language', 'Used by the microphone in Search', sel('vl', [['en-IN', 'English (India)'], ['hi-IN', 'Hindi'], ['pa-IN', 'Punjabi'], ['en-US', 'English (US)'], ['en-GB', 'English (UK)']], S.vl || 'en-IN'))); g[6].querySelector('h2').textContent = 'Library & data';
   g[3].querySelector('.sc').insertAdjacentHTML('beforeend', sr('Reduce motion', 'Fewer animations', sw('rm')));
   g[5].querySelector('.sc').insertAdjacentHTML('afterbegin', sr('Lyrics language', 'Hindi and Punjabi lyrics can be shown in Hinglish (Roman) or translated to English', sel('lyMode', [['orig', 'Original'], ['roman', 'Hinglish (Roman)'], ['en', 'English (translated)']], S.lyMode || 'orig')) + sr('Show original with translation', 'Both lines together', sw('lyDual')));
   g[6].querySelector('.sc').insertAdjacentHTML('beforeend', sr('Search history', J.get('koom.sh', []).length + ' searches', '<button class="btn2" data-act="shclr">Clear</button>') + sr('Backup', 'Save or restore your library, playlists and settings', '<span><button class="btn2" data-act="kexp">Export</button> <button class="btn2" data-act="kimp">Import</button></span>'));
@@ -737,12 +852,29 @@ function buildNP() {
   $('.npl .skr .sk').addEventListener('input', e => { const d = A.duration; if (d) $('.npl .dur').textContent = '-' + mm(d - e.target.value / 1000 * d); });
   A.addEventListener('timeupdate', () => { if (!drag && A.duration) $('.npl .dur').textContent = '-' + mm(A.duration - A.currentTime); });
 }
+function artistLinks(t) {
+  const L0 = t.c.artists && t.c.artists.length ? t.c.artists : t.c.artist ? [{ n: t.c.artist, id: t.c.artistId || '' }] : [];
+  const a = L0.map(x => `<a class="alink" ${x.id ? `data-aid="${esc(x.id)}"` : `data-an="${esc(x.n)}"`}>${esc(x.n)}</a>`).join(', ');
+  return a + (t.c.album ? ` — <a class="alink" ${t.c.albumId ? `data-alb="${esc(t.c.albumId)}"` : ''}>${esc(t.c.album)}</a>` : '');
+}
+function gotoArtistByName(n) {
+  SQ.q = n; SQ.f = 'artists'; SQ.items = []; SQ.page = 1; SQ.done = 0;
+  if (location.hash === '#/search') { showSearch(); runSearch(n, 1); } else { location.hash = '#/search'; setTimeout(() => $('#sq') && runSearch(n, 1), 140); }
+}
+$('#na').addEventListener('click', e => {
+  const a = e.target.closest('.alink'); if (!a) return; e.stopPropagation(); closeNP();
+  if (a.dataset.aid) location.hash = '#/artist/' + enc(a.dataset.aid); else if (a.dataset.alb) location.hash = '#/album/' + enc(a.dataset.alb); else if (a.dataset.an) gotoArtistByName(a.dataset.an);
+});
+V.addEventListener('click', e => {                     // artist name under a song row opens the artist page
+  const el = e.target.closest('.tr .ar, .tr .ti small'); if (!el) return; const tr = el.closest('.tr'), en = TM.get(tr.dataset.u), t = en && en.t; if (!t) return;
+  const id = (t.c.artists && t.c.artists[0] && t.c.artists[0].id) || t.c.artistId; if (!id) return; e.stopPropagation(); e.preventDefault(); location.hash = '#/artist/' + enc(id);
+}, true);
 function npMeta() {
   const t = Q[qi]; if (!t || !$('#npfrom')) return; const i = QINFO.get(t.c.videoId), n = Q[qi + 1], kb = i && ITAG[i.fmt];
   const pl = KPL && KPL.name ? KPL : curPl; $('#npfrom').textContent = pl && pl.name ? 'Playing from ' + pl.name : '';
   $('#npinfo').innerHTML = i ? `${i.ext === 'm4a' ? 'AAC' : i.ext === 'webm' ? 'Opus' : (i.ext || 'Audio').toUpperCase()}${kb ? ' · ~' + kb + ' kbps' : ''} · Stereo` + (n ? `<br>Up next · ${esc(title(n))}` : '') : '';
   $('#npdev').textContent = (NAME() ? NAME() + '’s ' : '') + (/Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ? 'Phone' : 'Device');
-  $('#npdl').innerHTML = ic('dl', 24); if (t.c.big && $('#nc').getAttribute('src') !== t.c.big) $('#nc').src = t.c.big; marqAll();
+  $('#na').innerHTML = artistLinks(t); $('#npdl').innerHTML = ic('dl', 24); if (t.c.big && $('#nc').getAttribute('src') !== t.c.big) $('#nc').src = t.c.big; marqAll();
 }
 let KPL = null; const _pf = window.playFrom; window.playFrom = function (p) { KPL = p; return _pf.apply(this, arguments); };
 const _op = window.openNP; window.openNP = function () { const r = _op.apply(this, arguments); requestAnimationFrame(() => requestAnimationFrame(marqAll)); return r; };
@@ -756,7 +888,9 @@ V.addEventListener('click', e => { if (e.target.closest('[data-st="lyDual"]')) s
   const t0 = performance.now(); window.__koomUp = 1;
   document.title = `${APP.name} — ${APP.tagline}`; window.SITE = APP.name; all('.site').forEach(e => e.textContent = APP.name);
   const o = J.get('koom.tracks', {}); for (const [u, c] of Object.entries(o)) TM.set(u, { t: { c, url: u, tags: {}, alt: '' }, p: null });
-  const mt = document.createElement('header'); mt.className = 'mtop'; mt.innerHTML = `<div><b>${APP.name}</b><small>${APP.tagline}</small></div><a class="av" href="#/settings" aria-label="Profile"></a>`; V.parentNode.insertBefore(mt, V);
+  const mt = document.createElement('header'); mt.className = 'mtop'; mt.innerHTML = `<a class="mbrand" href="#/"><img src="icon-192.png" alt="" width="42" height="42"><div><b>${esc(APP.name)}</b><small>${esc(APP.tagline)}</small></div></a><a class="av" href="#/settings" aria-label="Profile"></a>`; V.parentNode.insertBefore(mt, V);
+  { const bl = document.querySelector('.brand [data-ic]'); if (bl) { const im = document.createElement('img'); im.src = 'icon-192.png'; im.alt = ''; im.className = 'blogo'; im.width = im.height = 30; bl.replaceWith(im); } }
+  if (!navigator.onLine) netBar(true);
   if (S.pf === undefined) S.pf = 1; if (S.skip === undefined) S.skip = 1; saveS();
   buildNP();
   P = []; buildU(); applySet(); $('#bt').textContent = 'Not Playing'; restoreSession();
