@@ -565,7 +565,7 @@ window.route = function (keep) {
 const _act2 = window.act;
 window.act = (a, c) => {
   if (a === 'editname') { kAsk('What should we call you?', 'Your name', NAME()).then(n => { if (n) { LS.set('koom.name', n.replace(/\s+/g, ' ').slice(0, 30)); refreshAv(); toast('Name updated'); route(1); } }); return; }
-  if (a === 'install') { if (deferredInstall) { deferredInstall.prompt(); return; } return toast(location.protocol === 'http:' && !/^(localhost|127\.)/.test(location.hostname) ? 'Installing needs an https address' : /iPhone|iPad/i.test(navigator.userAgent) ? 'Tap Share, then “Add to Home Screen”' : 'Open the browser menu and choose “Install app”'); }
+  if (a === 'install') return installFlow();
   if (a === 'shareapp') { const u = location.href.split('#')[0]; if (navigator.share) navigator.share({ title: APP.name, text: APP.tagline, url: u }).catch(() => { }); else if (navigator.clipboard) navigator.clipboard.writeText(u).then(() => toast('Link copied')); return; }
   if (a === 'hplay') { if (Q[qi] && A.getAttribute('src')) { if (A.paused) A.play().catch(() => { }); else openNP(); return; } if (RESUME && Q[qi]) { const t = RESUME.t; RESUME = null; return play(qi, t); } const hs = byId('~hist'); if (hs.tracks.length) playFrom(hs, 0); return; }
   if (a === 'newpl') { newPlaylist().then(id => { if (id) location.hash = '#/p/' + id; }); return; }
@@ -778,7 +778,40 @@ const sel = (k, opts, cur) => `<select class="sel" data-kq="${k}" aria-label="${
 const FMTS = [['', 'Auto'], ['m4a', 'M4A (AAC)'], ['webm', 'WebM (Opus)']];
 const kPlay = () => `<div class="sg"><h2>Streaming</h2><div class="sc">${sr('Streaming quality', 'Higher quality uses more data', sel('sq', KQP, curQ()))}${sr('Audio format', 'M4A plays on every device, WebM (Opus) is smaller', sel('sf', FMTS, S.sf || ''))}${sr('Pre-load next song', 'The next song starts instantly', sw('pf'))}${sr('Skip unplayable songs', 'Moves on if a song can’t be played', sw('skip'))}${sr('Music taste', 'Used for Made For You on Home', '<button class="btn2" data-act="taste">Edit</button>')}</div></div>
 <div class="sg"><h2>Downloads</h2><div class="sc">${sr('Download quality', 'Used by every Download button', sel('dq', DQP, S.dq || 'ask'))}${sr('Audio format', 'Same setting as streaming', sel('sf', FMTS, S.sf || ''))}</div></div>`;
-let deferredInstall = null; addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; }); addEventListener('appinstalled', () => { deferredInstall = null; toast('KOOM installed'); });
+let deferredInstall = null, INST_SHOWN = 0; const DAY = 864e5;
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true, isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream;
+async function pwaInstalled() { if (LS.get('koom.pwa') === 'in') return true; try { if (navigator.getInstalledRelatedApps) { const r = await navigator.getInstalledRelatedApps(); if (r && r.length) return true; } } catch (e) { } return false; }
+function openInstalled() { window.open(location.href.split('#')[0], '_blank'); setTimeout(() => toast('If it didn’t open, tap the ' + APP.name + ' icon on your home screen'), 1400); }
+async function installFlow() {
+  if (isStandalone()) return toast(APP.name + ' is already installed');
+  if (deferredInstall) { deferredInstall.prompt(); const c = await deferredInstall.userChoice.catch(() => null); if (c && c.outcome === 'accepted') LS.set('koom.pwa', 'in'); deferredInstall = null; return; }
+  if (await pwaInstalled()) return openInstalled();
+  toast(location.protocol === 'http:' && !/^(localhost|127\.)/.test(location.hostname) ? 'Installing needs an https address' : isIOS() ? 'Tap Share, then “Add to Home Screen”' : 'Open the browser menu and choose “Install app”');
+}
+function closeInst(snooze) { const el = $('#kinst'); if (!el) return; if (snooze) LS.set('koom.inst.snooze', Date.now() + snooze); el.classList.add('out'); setTimeout(() => el.remove(), 320); }
+async function maybeInstallPrompt() {
+  if (INST_SHOWN || $('#kinst') || isStandalone() || !window.isSecureContext) return;
+  if (!/^#?\/?$/.test(location.hash) || Date.now() < (+LS.get('koom.inst.snooze') || 0) || (+LS.get('koom.visits') || 1) < 2) return;
+  if ($('#np').classList.contains('open') || $('#wel')) return;
+  const inst = await pwaInstalled(), ios = isIOS(); if (!deferredInstall && !ios && !inst) return;
+  INST_SHOWN = 1; const mode = inst ? 'open' : deferredInstall ? 'install' : 'ios';
+  const T = { install: ['Install ' + APP.name, 'Full-screen, faster, and one tap from your home screen.', 'Install'], open: [APP.name + ' is installed', 'Open it from your home screen for the full-screen experience.', 'Open app'], ios: ['Add ' + APP.name + ' to your Home Screen', 'Tap Share, then “Add to Home Screen”.', 'Got it'] }[mode];
+  const el = document.createElement('div'); el.id = 'kinst'; el.className = 'kinst'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', T[0]);
+  el.innerHTML = `<img src="icon-192.png" alt="" width="48" height="48"><div class="kit"><b>${esc(T[0])}</b><span>${esc(T[1])}</span></div><button class="kx" aria-label="Close">×</button><div class="kia"><button class="btn2" data-i="later">Later</button><button class="pill pri" data-i="go">${T[2]}</button></div><i class="kbar"></i>`;
+  document.body.append(el);
+  el.addEventListener('animationend', e => { if (e.target.classList.contains('kbar')) closeInst(6 * 36e5); });      // nobody tapped: close, ask again in a few hours
+  ['pointerdown', 'focusin'].forEach(ev => el.addEventListener(ev, () => el.classList.add('hold')));
+  ['pointerup', 'pointercancel', 'focusout'].forEach(ev => el.addEventListener(ev, () => el.classList.remove('hold')));
+  el.onclick = e => {
+    if (e.target.closest('.kx')) return closeInst(3 * DAY);
+    const b = e.target.closest('[data-i]'); if (!b) return;
+    if (b.dataset.i === 'later') return closeInst(3 * DAY);
+    closeInst(mode === 'ios' ? 14 * DAY : 1 * DAY); if (mode === 'install') installFlow(); else if (mode === 'open') openInstalled();
+  };
+}
+addEventListener('hashchange', () => { if (!/^#?\/?$/.test(location.hash)) closeInst(0); });
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; setTimeout(maybeInstallPrompt, 3500); });
+addEventListener('appinstalled', () => { deferredInstall = null; LS.set('koom.pwa', 'in'); closeInst(0); toast(APP.name + ' installed'); });
 const _kp = window.kProfile; window.kProfile = () => _kp() + kPlay();
 const _showSet = window.showSet;
 window.showSet = function () {
@@ -789,7 +822,7 @@ window.showSet = function () {
   g[3].querySelector('.sc').insertAdjacentHTML('beforeend', sr('Reduce motion', 'Fewer animations', sw('rm')));
   g[5].querySelector('.sc').insertAdjacentHTML('afterbegin', sr('Lyrics language', 'Hindi and Punjabi lyrics can be shown in Hinglish (Roman) or translated to English', sel('lyMode', [['orig', 'Original'], ['roman', 'Hinglish (Roman)'], ['en', 'English (translated)']], S.lyMode || 'orig')) + sr('Show original with translation', 'Both lines together', sw('lyDual')));
   g[6].querySelector('.sc').insertAdjacentHTML('beforeend', sr('Search history', J.get('koom.sh', []).length + ' searches', '<button class="btn2" data-act="shclr">Clear</button>') + sr('Backup', 'Save or restore your library, playlists and settings', '<span><button class="btn2" data-act="kexp">Export</button> <button class="btn2" data-act="kimp">Import</button></span>'));
-  if (!matchMedia('(display-mode: standalone)').matches) g[8].querySelector('.sc').insertAdjacentHTML('afterbegin', sr('Install KOOM', 'Add it to your home screen for a full-screen app', '<button class="btn2" data-act="install">Install</button>'));
+  if (!matchMedia('(display-mode: standalone)').matches) g[8].querySelector('.sc').insertAdjacentHTML('afterbegin', sr('Install ' + APP.name, 'Add it to your home screen for a full-screen app', '<button class="btn2" data-act="install">' + (LS.get('koom.pwa') === 'in' ? 'Open' : 'Install') + '</button>'));
   const order = [g[0], g[3], g[4], g[1], g[2], g[5], g[6], g[7], g[8]], ids = ['profile', 'look', 'play', 'stream', 'dl', 'lyr', 'data', 'keys', 'about'];
   order.forEach((e, i) => { e.id = 'st-' + ids[i]; V.append(e); });
   const jump = [['profile', 'Profile'], ['look', 'Appearance'], ['play', 'Playback'], ['stream', 'Streaming'], ['dl', 'Downloads'], ['lyr', 'Lyrics'], ['data', 'Data'], ['about', 'About']];
@@ -801,14 +834,29 @@ const _apply = window.applySet; window.applySet = function () { _apply(); docume
 
 /* ---------- resume where you left off + gestures ---------- */
 let RESUME = null;
-function saveSess() { if (!Q.length || qi < 0) return; J.set('koom.sess', { u: Q.slice(0, 100).map(t => t.url), i: Math.min(qi, 99), t: Math.floor(A.currentTime || 0) }); persist(); }
-setInterval(() => { if (!A.paused) saveSess(); }, 5000); addEventListener('pagehide', saveSess); A.addEventListener('pause', saveSess);
+function saveSess() {
+  if (!Q.length || qi < 0) return; const prev = J.get('koom.sess', null) || {};
+  J.set('koom.sess', { u: Q.slice(0, 100).map(t => t.url), i: Math.min(qi, 99), t: RESUME ? RESUME.t : Math.floor(A.currentTime || 0), pl: RESUME ? !!prev.pl : !A.paused, sh: shuffle ? 1 : 0, rp: rep || 0 }); persist();
+}
+setInterval(() => { if (!A.paused) saveSess(); }, 4000); addEventListener('pagehide', saveSess); addEventListener('beforeunload', saveSess); A.addEventListener('pause', saveSess); A.addEventListener('play', saveSess);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveSess(); });
 const _pl2 = window.play; window.play = function () { RESUME = null; return _pl2.apply(this, arguments); };
 { const _tf = window.toggleFav; window.toggleFav = function () { navigator.vibrate && navigator.vibrate(10); return _tf.apply(this, arguments); }; }
+function applyModes() {
+  all('.shf').forEach(e => e.classList.toggle('on', !!shuffle));
+  all('.rpt').forEach(e => { e.classList.toggle('on', rep > 0); e.innerHTML = ic('rep', 22) + (rep === 2 ? '<b style="position:absolute;font-size:.6rem">1</b>' : ''); });
+}
+function saveUI() { const np = $('#np'); J.set('koom.ui', { open: np.classList.contains('open') ? 1 : 0, lyf: np.classList.contains('lyf') ? 1 : 0, tab: $('#ly') && !$('#ly').hidden ? 'ly' : 'q' }); }
 function restoreSession() {
   const ss = J.get('koom.sess', null); if (!ss || !ss.u || !ss.u.length) return;
   const T = ss.u.map(u => TM.get(u) && TM.get(u).t), cur = T[ss.i] || T.find(Boolean), tr = T.filter(Boolean); if (!cur) return;
-  Q = tr; qi = tr.indexOf(cur); RESUME = { t: T[ss.i] ? ss.t || 0 : 0 }; ui(); drawQ(); setPP();
+  Q = tr; qi = tr.indexOf(cur); const t0 = T[ss.i] ? ss.t || 0 : 0; RESUME = { t: t0 };
+  if (ss.sh !== undefined) { shuffle = ss.sh ? 1 : 0; rep = ss.rp || 0; applyModes(); }
+  ui(); drawQ(); setPP(); $('#bar').classList.add('on');                        // mini player stays visible
+  const d = cur.c.duration || 0;
+  if (d && t0) { const p = Math.min(1000, Math.round(t0 / d * 1000)); all('.sk').forEach(e => { e.value = p; e.style.setProperty('--p', p / 10 + '%'); }); all('.ct').forEach(e => e.textContent = mm(t0)); const r = $('.npl .dur'); if (r) r.textContent = '-' + mm(Math.max(0, d - t0)); }
+  const u = J.get('koom.ui', null); if (u && u.open) { openNP(u.tab !== 'q'); if (u.lyf) $('#np').classList.add('lyf'); seg(u.tab !== 'q'); if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); }   // player / queue screen stays open
+  if (ss.pl) setTimeout(() => { if (RESUME && Q[qi]) { const t = RESUME.t; RESUME = null; play(qi, t); } }, 600);          // was playing: try to carry on (browser may ask for a tap)
 }
 all('.pp').forEach(b => b.addEventListener('click', e => { if (RESUME && Q[qi] && !A.getAttribute('src')) { e.stopImmediatePropagation(); const t = RESUME.t; RESUME = null; play(qi, t); } }, true));
 { const np = $('#np'); let y0 = 0, dy = 0, on = 0;       // swipe the artwork down to close the player
@@ -837,14 +885,14 @@ function buildNP() {
   const vr = npl.querySelector('.vrow'); vr.querySelector('.vi').innerHTML = SVG.spk; vr.insertAdjacentHTML('beforeend', `<span class="vi2">${SVG.spk2}</span>`);
   npl.querySelector('.ctl .pv').innerHTML = SVG.rew; npl.querySelector('.ctl .nx').innerHTML = SVG.fwd;
   npl.insertAdjacentHTML('beforeend', `<div class="npbot"><button class="ib npb" id="npbl" aria-label="Lyrics">${SVG.quote}</button><div class="pill2"><button id="npq" aria-label="Audio quality">${SVG.phones}</button><i></i><button id="npdl" aria-label="Download">${ic('dl', 24)}</button></div><button class="ib npb" id="npqq" aria-label="Up next">${SVG.list}</button></div><div class="npdev" id="npdev"></div>`);
-  document.querySelector('.segrow').insertAdjacentHTML('afterend', `<div class="lymodes" id="lymodes">${LMODES.map(([k, l]) => `<button data-lm="${k}">${l}</button>`).join('')}<button data-lm="dual" title="Show original and translation together">Both</button></div><div class="qmode" id="qmode" hidden><button class="ib" id="qshf" aria-label="Shuffle">${ic('shuf', 22)}</button><button class="ib" id="qrpt" aria-label="Repeat">${ic('rep', 22)}</button><button class="btn2" data-act="qshufup">Shuffle Up Next</button><button class="btn2" data-act="qdedupe">Remove duplicates</button><button class="btn2" data-act="qsave">Save as playlist</button><button class="btn2" data-act="qclear">Clear</button></div>`);
+  document.querySelector('.segrow').insertAdjacentHTML('afterend', `<div class="lymodes" id="lymodes">${LMODES.map(([k, l]) => `<button data-lm="${k}">${l}</button>`).join('')}<button data-lm="dual" title="Show original and translation together">Both</button></div><div class="qmode" id="qmode" hidden><button class="ib shf" id="qshf" aria-label="Shuffle">${ic('shuf', 22)}</button><button class="ib rpt" id="qrpt" aria-label="Repeat">${ic('rep', 22)}</button><button class="btn2" data-act="qshufup">Shuffle Up Next</button><button class="btn2" data-act="qdedupe">Remove duplicates</button><button class="btn2" data-act="qsave">Save as playlist</button><button class="btn2" data-act="qclear">Clear</button></div>`);
   const np = $('#np');
   $('#npbl').onclick = $('#nplyl').onclick = () => { np.classList.add('lyf'); seg(true); };
   $('#npqq').onclick = () => { np.classList.add('lyf'); seg(false); };
   $('#npq').onclick = $('#npinfo').onclick = e => Q[qi] && qualityMenu(Q[qi], e.currentTarget);
   $('#npdl').onclick = e => dl(Q[qi], null, e.currentTarget);
-  $('#qshf').onclick = () => { $('.ctl .shf').click(); setTimeout(() => $('#qshf').className = 'ib ' + ($('.ctl .shf').classList.contains('on') ? 'on' : ''), 30); };
-  $('#qrpt').onclick = () => { $('.ctl .rpt').click(); setTimeout(() => { $('#qrpt').innerHTML = $('.ctl .rpt').innerHTML; $('#qrpt').className = 'ib ' + ($('.ctl .rpt').classList.contains('on') ? 'on' : ''); }, 30); };
+  $('#qshf').onclick = () => $('.ctl .shf').click(); $('#qrpt').onclick = () => $('.ctl .rpt').click();     // same state as the player (they share the .shf/.rpt classes)
+  new MutationObserver(saveUI).observe(np, { attributes: true, attributeFilter: ['class'] }); new MutationObserver(saveUI).observe($('#ly'), { attributes: true, attributeFilter: ['hidden'] });
   $('#lymodes').onclick = e => {
     const b = e.target.closest('[data-lm]'); if (!b) return; const k = b.dataset.lm;
     if (k === 'dual') S.lyDual = S.lyDual ? 0 : 1; else { S.lyMode = k; if (k === 'orig') S.lyDual = 0; } saveS(); drawLy();
@@ -890,6 +938,7 @@ V.addEventListener('click', e => { if (e.target.closest('[data-st="lyDual"]')) s
   const o = J.get('koom.tracks', {}); for (const [u, c] of Object.entries(o)) TM.set(u, { t: { c, url: u, tags: {}, alt: '' }, p: null });
   const mt = document.createElement('header'); mt.className = 'mtop'; mt.innerHTML = `<a class="mbrand" href="#/"><img src="icon-192.png" alt="" width="42" height="42"><div><b>${esc(APP.name)}</b><small>${esc(APP.tagline)}</small></div></a><a class="av" href="#/settings" aria-label="Profile"></a>`; V.parentNode.insertBefore(mt, V);
   { const bl = document.querySelector('.brand [data-ic]'); if (bl) { const im = document.createElement('img'); im.src = 'icon-192.png'; im.alt = ''; im.className = 'blogo'; im.width = im.height = 30; bl.replaceWith(im); } }
+  LS.set('koom.visits', (+LS.get('koom.visits') || 0) + 1); if (isStandalone()) LS.set('koom.pwa', 'in');
   if (!navigator.onLine) netBar(true);
   if (S.pf === undefined) S.pf = 1; if (S.skip === undefined) S.skip = 1; saveS();
   buildNP();
@@ -898,6 +947,7 @@ V.addEventListener('click', e => { if (e.target.closest('[data-st="lyDual"]')) s
   ['https://i.ytimg.com', 'https://lh3.googleusercontent.com'].forEach(h => { const l = document.createElement('link'); l.rel = 'preconnect'; l.href = h; document.head.append(l); });
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || /^(localhost|127\.)/.test(location.hostname))) navigator.serviceWorker.register('sw.js').catch(() => { });
   const hideSplash = async () => { const sp = $('#splash'); await wsleep(Math.max(0, 1100 - (performance.now() - t0))); if (sp) { sp.classList.add('out'); await wsleep(480); sp.remove(); } };
+  setTimeout(maybeInstallPrompt, 6500);
   if (NAME()) { refreshAv(); route(); await hideSplash(); }
   else { await hideSplash(); await welcome(); refreshAv(); route(); }
 })();
