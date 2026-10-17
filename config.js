@@ -1,9 +1,9 @@
 /* KOOM — single configuration layer. Edit only this file. */
 const API_CONFIG = {
-  MUSIC_API_URL: "https://api.koom.site",   // search, home, artist, album, lyrics…
+  MUSIC_API_URL: "https://searchapi.koom.site",   // search, home, artist, album, lyrics…
   STREAM_API_URL: "https://dl.koom.site",          // playback only (POST /stream)
   API_KEY: "rowgxxmoduf47idhdjfg735hs",                         // sent as X-API-Key to the Downloader (visible in the browser — not a real secret)
-  MUSIC_API_KEY: "kehgidbeoxh6347hdnibdiejhp"                    // only needed if the Music API has API_KEY set; harmless otherwise
+  MUSIC_API_KEY: "admi@11xkoomsite"                    // only needed if the Music API has API_KEY set; harmless otherwise
 };
 // Optional: your own translation endpoint (same query format as translate.googleapis.com/translate_a/single). Empty = Google's.
 API_CONFIG.TRANSLATE_URL = "";
