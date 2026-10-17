@@ -1,6 +1,6 @@
 {
-  "name": "KOOM — Feel Every Beat.",
-  "short_name": "KOOM",
+  "name": "KOOM.SITE — Feel Every Beat.",
+  "short_name": "KOOM.SITE",
   "description": "A modern music discovery and listening app.",
   "start_url": "./index.html",
   "scope": "./",
