@@ -1,6 +1,6 @@
 /* KOOM — single configuration layer. Edit only this file. */
 const API_CONFIG = {
-  MUSIC_API_URL: "https://searchapi.koom.site",   // search, home, artist, album, lyrics…
+  MUSIC_API_URL: "https://searchapi2.koom.site",   // search, home, artist, album, lyrics…
   STREAM_API_URL: "https://dl2.koom.site",          // playback only (POST /stream)
   API_KEY: "admi@11xkoomsite",                         // sent as X-API-Key to the Downloader (visible in the browser — not a real secret)
   MUSIC_API_KEY: "admi@11xkoomsite"                    // only needed if the Music API has API_KEY set; harmless otherwise
