@@ -496,7 +496,7 @@ window.trackMenu = (t, p, anchor) => {
   const f = FAV.includes(t.url);
   openMenu([{ l: 'Play Next', i: 'next', fn: () => qAdd(t, true) }, { l: 'Add to Queue', i: 'qadd', fn: () => qAdd(t, false) }, { l: f ? 'Remove from Favourites' : 'Add to Favourites', i: f ? 'heartf' : 'heart', fn: () => toggleFav(t) }, { l: 'Add to Playlist…', i: 'plus', fn: () => pickPl(t) }, { l: 'Share', i: 'expand', fn: () => shareTrack(t) },
   p && p.custom ? { l: 'Remove from this playlist', i: 'trash', fn: () => rmFromPl(p, t) } : null, { sep: 1 },
-  { l: 'Start Radio', i: 'shuf', fn: () => { Q = [t]; play(0); } }, { l: 'Audio quality…', i: 'sliders', fn: () => qualityMenu(t, anchor) }, { l: 'Track info', i: 'info', fn: () => showInfo(t) }, OFF.has(t.url) ? { l: 'Remove download', i: 'trash', fn: () => rmDl(t) } : { l: 'Download for offline', i: 'dl', fn: () => addDl(t) }, { l: 'Save to device', i: 'dl', fn: () => dl(t, null, anchor) }, t.c.artistId ? { l: 'Go to Artist', i: 'logo', fn: () => location.hash = '#/artist/' + enc(t.c.artistId) } : null, t.c.albumId ? { l: 'Go to Album', i: 'logo', fn: () => location.hash = '#/album/' + enc(t.c.albumId) } : null].filter(Boolean), anchor, title(t));
+  { l: 'Start Radio', i: 'shuf', fn: () => { Q = [t]; play(0); } }, { l: 'Audio quality…', i: 'sliders', fn: () => qualityMenu(t, anchor) }, { l: 'Track info', i: 'info', fn: () => showInfo(t) }, { l: OFF.has(t.url) ? 'Downloaded · options' : 'Download…', i: OFF.has(t.url) ? 'dldone' : 'dl', fn: () => dlChoose(t, anchor) }, t.c.artistId ? { l: 'Go to Artist', i: 'logo', fn: () => location.hash = '#/artist/' + enc(t.c.artistId) } : null, t.c.albumId ? { l: 'Go to Album', i: 'logo', fn: () => location.hash = '#/album/' + enc(t.c.albumId) } : null].filter(Boolean), anchor, title(t));
 };
 
 /* ---------- routing / events ---------- */
@@ -961,4 +961,4 @@ V.addEventListener('click', e => { if (e.target.closest('[data-st="lyDual"]')) s
   if (NAME()) { refreshAv(); route(); await hideSplash(); }
   else { await hideSplash(); await welcome(); refreshAv(); route(); }
 })();
-$('#ndl').onclick = e => dl(Q[qi], null, e.currentTarget);
+$('#ndl').onclick = e => dlChoose(Q[qi], e.currentTarget);

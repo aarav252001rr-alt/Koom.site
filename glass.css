@@ -254,3 +254,8 @@ dialog::backdrop{background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(6px);ba
 .eqb label span{color:var(--mute)}.eqb label em{font-style:normal;text-align:end;font-variant-numeric:tabular-nums}
 .eqb input{width:100%;margin:0}
 .eqn{color:var(--mute);font-size:.8rem;margin:14px 0}
+
+/* ---------- 18. Downloads toolbar ---------- */
+.dltool{display:flex;gap:10px;align-items:center;margin:6px 0 14px;flex-wrap:wrap}
+.dltool .sbox{flex:1 1 220px;max-width:420px;margin:0;height:44px}
+.tr[hidden]{display:none}

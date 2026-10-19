@@ -113,8 +113,7 @@
       { l: 'Equalizer', i: 'sliders', r: eqLabel(), fn: openEq },
       { sep: 1 },
       { l: _('addPl'), i: 'plus', fn: () => pickPl(t) },
-      { l: off ? 'Remove download' : 'Download for offline', i: off ? 'trash' : 'dl', fn: () => off ? rmDl(t) : addDl(t) },
-      { l: 'Save to device', i: 'dl', fn: () => dl(t, null, e.currentTarget) },
+      { l: off ? 'Downloaded · options' : 'Download…', i: off ? 'dldone' : 'dl', fn: () => dlChoose(t, e.currentTarget) },
       { l: 'Share lyric line', i: 'quote', fn: shareLyric },
       { l: 'Share song', i: 'expand', fn: () => shareTrack(t) },
       { l: _('trackInfo'), i: 'info', fn: () => showInfo(t) }
