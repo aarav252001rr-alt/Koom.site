@@ -27,6 +27,7 @@
   window.addDl = async function (t) {
     if (!t || !t.c || !t.c.videoId) return toast('This item can’t be downloaded');
     if (OFF.has(t.url) || DLP[t.url] != null) return;
+    if (+S.dlMax > 0 && OFF.size + Object.keys(DLP).length >= +S.dlMax) return toast('Downloads limit reached (' + S.dlMax + ' songs). Change it in Settings → Downloads.');
     if (!navigator.onLine) return toast('You’re offline — connect to the internet to download');
     const cn = navigator.connection; if (S.dlWifi && cn && (cn.type === 'cellular' || cn.saveData)) return toast('Wi-Fi only downloads is on — connect to Wi-Fi or turn it off in Settings');
     const ac = ABORT[t.url] = new AbortController();
@@ -75,10 +76,11 @@
       { l: 'All to this device — files', i: 'dl', fn: async () => { toast('Saving ' + T.length + ' songs to your device'); for (const t of T) { await dl(t, dlQ()); await new Promise(r => setTimeout(r, 700)); } } }
     ], a, 'Download ' + T.length + ' songs');
   };
+  window.kIdb = idb;
   const _gl = window.getLy;                                                                // offline lyrics
   window.getLy = async function (t) {
     if (t.lyr !== undefined) return;
-    if (OFF.has(t.url)) { try { const r = await idb('readonly', s => s.get('lyr:' + t.url)); if (r && r.lyr) { t.lyr = r.lyr; return; } } catch (e) { } }
+    if (OFF.has(t.url) && !t.lyForce) { try { const r = await idb('readonly', s => s.get('lyr:' + t.url)); if (r && r.lyr) { t.lyr = r.lyr; return; } } catch (e) { } }
     return _gl.apply(this, arguments);
   };
   const _rd = window.rmDl; window.rmDl = async function (t) { await _rd.apply(this, arguments); idb('readwrite', s => s.delete('lyr:' + t.url)).catch(() => { }); };

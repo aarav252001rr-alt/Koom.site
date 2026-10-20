@@ -26,8 +26,8 @@
 @media(prefers-reduced-motion:reduce){#splash *{animation:none!important}}</style>
 <script src="config.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'"><noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="style.css?v=11">
-<link rel="stylesheet" href="glass.css?v=6">
+<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="glass.css?v=9">
 <script src="i18n.js?v=5"></script>
 <script src="app.js?v=5"></script>
 </head>
@@ -181,7 +181,7 @@ $('#cm').onclick=e=>{const b=e.target.closest('button[data-k]');if(!b)return;con
 
 /* ---------- favourites / history / playlists ---------- */
 function toggleFav(t){if(!t)return;const i=FAV.indexOf(t.url);if(i>=0){FAV.splice(i,1);toast(_('favOff'))}else{FAV.unshift(t.url);toast(_('favOn'))}J.set('ml.fav',FAV);syncHearts();if(view==='fav')route(1)}
-function logPlay(t){HIST=HIST.filter(h=>h.u!==t.url);HIST.unshift({u:t.url,t:Date.now()});HIST=HIST.slice(0,50);PLAYS[t.url]=(PLAYS[t.url]||0)+1;J.set('ml.hist',HIST);J.set('ml.plays',PLAYS)}
+function logPlay(t){HIST=HIST.filter(h=>h.u!==t.url);HIST.unshift({u:t.url,t:Date.now()});if(+S.histMax>0)HIST=HIST.slice(0,+S.histMax);PLAYS[t.url]=(PLAYS[t.url]||0)+1;J.set('ml.hist',HIST);J.set('ml.plays',PLAYS)}
 function buildU(){U=UPL.map(x=>({id:x.id,name:x.name,custom:1,description:'',tracks:x.urls.map(u=>TM.get(u)?.t).filter(Boolean)}))}
 function newPl(){const n=prompt(_('plName'));if(!n||!n.trim())return null;const id='u'+Date.now().toString(36);UPL.push({id,name:n.trim(),urls:[]});J.set('ml.pl',UPL);buildU();drawSide();return U.find(x=>x.id===id)}
 function addToPl(id,t){const x=UPL.find(u=>u.id===id);if(!x)return;if(x.urls.includes(t.url))return toast(_('plHas'));x.urls.push(t.url);J.set('ml.pl',UPL);buildU();toast(_('plAdded',{n:x.name}))}
@@ -476,7 +476,6 @@ function showDl(){
   view='downloads';const p=byId('~dl'),T=p.tracks,ing=Object.keys(DLP).map(u=>TM.get(u)?.t).filter(Boolean),used=Object.values(DM).reduce((a,x)=>a+(x.size||0),0);
   V.innerHTML=`<h1 class="lt">${_('downloads')}</h1><p class="lead">${_('songs',{n:T.length})} · ${fmtMB(used)}<span id="quota"></span></p>${T.length?`<div class="btns"><button class="pill pri" data-act="pplay" data-pid="~dl">${ic('play',18)}${_('play')}</button><button class="pill" data-act="rmalldl">${ic('trash',18)}${_('removeAll')}</button></div>`:''}${ing.length?`<div class="sech"><h2>${_('downloading')}</h2></div><div class="qg">${ing.map(t=>`<div class="qk"><img src="${cover(t)}" alt=""><div><b>${esc(title(t))}</b><div class="dlp"><i data-pg="${esc(t.url)}"></i></div></div></div>`).join('')}</div>`:''}${T.length?hdr+T.map((t,i)=>row(t,i,p,i+1)).join(''):(ing.length?'':'<div class="msg">'+_('dlEmpty')+'</div>')}`;
   fin();syncDl();
-  try{navigator.storage?.estimate?.().then(e=>{const q=$('#quota');if(q&&e.quota)q.textContent=' · '+_('freeSpace',{s:fmtMB(e.quota-e.usage)})}).catch(()=>{})}catch(e){}
 }
 function drawSr(){
   const q=sqv.trim().toLowerCase(),el=$('#sr');if(!el)return;
@@ -579,9 +578,11 @@ function refreshLang(){initLang();if(Q[qi]){ui();drawQ();drawLy()}route(1)}
 initLang();
 
 </script>
-<script src="koom.js?v=16"></script>
-<script src="offline.js?v=3"></script>
+<script src="koom.js?v=17"></script>
+<script src="lyrics.js?v=2"></script>
+<script src="offline.js?v=5"></script>
 <script src="features.js?v=3"></script>
+<script src="motion.js?v=2"></script>
 <script src="glass.js?v=2"></script>
 </body>
 </html>

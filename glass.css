@@ -273,3 +273,66 @@ dialog::backdrop{background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(6px);ba
 #koff{transition:opacity .35s,transform .35s}#koff.gone{opacity:0;transform:translateY(-12px) }
 #dd .alink{color:var(--acc);cursor:pointer;text-decoration:none;font-weight:600}#dd .alink:hover{text-decoration:underline}
 .sw2{margin-top:18px}.sw2 .sbox{margin-top:0}
+
+/* 20. lyrics info row + UX polish */
+.lyinfo{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0 2px}.lyinfo:empty{display:none}
+.lychip{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px;border-radius:var(--r-pill);background:var(--g-1);border:1px solid var(--g-edge-soft);color:var(--mute);font:600 .78rem/1 inherit;font-family:inherit;transition:background .2s,color .2s,transform .15s var(--ease)}
+.lychip:hover{background:var(--fill2);color:var(--ink)}.lychip:active{transform:scale(.96)}
+.lysk{height:18px;width:60%;margin:18px auto;border-radius:9px;background:linear-gradient(90deg,var(--fill),var(--fill2),var(--fill));background-size:200% 100%;animation:lysk 1.2s linear infinite}
+@keyframes lysk{to{background-position:-200% 0}}
+html{scroll-behavior:smooth;-webkit-tap-highlight-color:transparent}
+button,a,.card,.tr,.qr,select{touch-action:manipulation}
+#view,#ly,#qq{overscroll-behavior:contain}
+.tr,.qr{content-visibility:auto;contain-intrinsic-size:auto 60px}
+.card{transition:transform .25s var(--ease),box-shadow .25s}.card:active{transform:scale(.97)}
+.tr{transition:background .18s}.tr:active{background:var(--fill)}
+#ly p{transition:opacity .35s,transform .35s var(--ease),filter .35s}
+.pill,.btn2,.ib{transition:background .2s,transform .15s var(--ease),opacity .2s}
+.pill:active,.btn2:active,.ib:active{transform:scale(.95)}
+.kinst{backdrop-filter:blur(22px) saturate(1.4);-webkit-backdrop-filter:blur(22px) saturate(1.4)}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.lysk{animation:none}}
+
+/* 21. motion + Apple-Music-style extras */
+.npglow{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity 1s ease;background:radial-gradient(90% 60% at 12% 0%,rgb(var(--tr,0 0 0)/.6),transparent 70%),radial-gradient(80% 60% at 100% 100%,rgb(var(--tr,0 0 0)/.42),transparent 70%)}
+#np.tinted .npglow{opacity:1}[data-theme=light] #np.tinted .npglow{opacity:.55}
+#np.tinted .npl .ncov{box-shadow:0 34px 80px -26px rgb(var(--tr)/.75)}
+#bar.tinted{box-shadow:0 10px 40px -18px rgb(var(--tr)/.7)}
+#bar.tinted .prog i{background:rgb(var(--tr))}
+@keyframes swl{0%{transform:translateX(0);opacity:1}40%{transform:translateX(-22px);opacity:.2}60%{transform:translateX(22px);opacity:.2}100%{transform:none;opacity:1}}
+@keyframes swr{0%{transform:translateX(0);opacity:1}40%{transform:translateX(22px);opacity:.2}60%{transform:translateX(-22px);opacity:.2}100%{transform:none;opacity:1}}
+.swl{animation:swl .38s var(--ease)}.swr{animation:swr .38s var(--ease)}
+#nc{touch-action:pan-y}#bar{touch-action:none}.np.dragging{will-change:transform}
+.hb.pop{animation:hbpop .55s cubic-bezier(.2,1.6,.4,1)}
+@keyframes hbpop{0%{transform:scale(1)}30%{transform:scale(1.45)}60%{transform:scale(.92)}100%{transform:scale(1)}}
+.topres{display:flex;align-items:center;gap:16px;padding:16px;margin:8px 0 22px;border-radius:var(--r-xl);background:var(--g-2);border:1px solid var(--g-edge);box-shadow:var(--g-hi);cursor:pointer;transition:transform .25s var(--ease),background .2s}
+.topres:hover{background:var(--fill2)}.topres:active{transform:scale(.985)}
+.topres img{width:84px;height:84px;border-radius:14px;object-fit:cover;flex:none}.topres img.rnd{border-radius:50%}
+.topres .tt{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1}.topres .tt b{font-size:1.25rem;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.topres .tt small{color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topres .kick{font-size:.68rem;letter-spacing:.1em;color:var(--acc)}
+.topres .tp{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--acc);color:#fff;flex:none}
+.g-sec{animation:g-rise .5s var(--ease) both}
+.kbl{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:0}.kbl dd{margin:0;color:var(--mute)}
+kbd{font:600 .78rem ui-monospace,monospace;padding:3px 8px;border-radius:7px;background:var(--fill2);border:1px solid var(--g-edge-soft)}
+/* staggered entrance for cards and rows */
+#view.g-enter .hr>.card,#view.g-enter .grid>.card,#view.g-enter .tr{animation:g-rise .5s var(--ease) both}
+#view.g-enter .hr>.card:nth-child(2),#view.g-enter .tr:nth-child(2){animation-delay:.05s}
+#view.g-enter .hr>.card:nth-child(3),#view.g-enter .tr:nth-child(3){animation-delay:.09s}
+#view.g-enter .hr>.card:nth-child(4),#view.g-enter .tr:nth-child(4){animation-delay:.13s}
+#view.g-enter .hr>.card:nth-child(5),#view.g-enter .tr:nth-child(5){animation-delay:.17s}
+#view.g-enter .hr>.card:nth-child(n+6),#view.g-enter .tr:nth-child(n+6){animation-delay:.21s}
+/* Now Playing: spring open */
+.card .art img{transition:transform .5s var(--ease)}.card:hover .art img{transform:scale(1.04)}
+.toast{animation:g-rise .35s var(--ease)}
+@media (prefers-reduced-motion:reduce){.swl,.swr,.hb.pop,.g-sec,.topres{animation:none!important}.npglow{transition:none}}
+
+/* 22. Home: moods + Top Picks (Apple Music "Listen Now" style) */
+.moods{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 14px;margin:2px -2px 0;scrollbar-width:none;scroll-snap-type:x proximity}.moods::-webkit-scrollbar{display:none}
+.mood{flex:none;min-height:36px;padding:0 16px;border-radius:var(--r-pill);background:var(--g-1);border:1px solid var(--g-edge-soft);box-shadow:var(--g-hi);color:var(--ink);font:600 .86rem/1 inherit;font-family:inherit;scroll-snap-align:start;display:inline-flex;align-items:center;transition:background .2s,transform .15s var(--ease)}
+.mood:hover{background:var(--fill2)}.mood:active{transform:scale(.94)}
+.tpicks{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 18px;margin:0 -2px;scrollbar-width:none}.tpicks::-webkit-scrollbar{display:none}
+.tpick{position:relative;flex:none;width:min(78vw,300px);aspect-ratio:1;border-radius:var(--r-xl);overflow:hidden;scroll-snap-align:start;cursor:pointer;box-shadow:0 18px 40px -22px rgba(0,0,0,.7);transition:transform .3s var(--ease)}
+.tpick:active{transform:scale(.97)}.tpick img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .6s var(--ease)}.tpick:hover img{transform:scale(1.05)}
+.tpick .tpg{position:absolute;left:0;right:0;bottom:0;padding:44px 16px 16px;display:flex;flex-direction:column;gap:3px;background:linear-gradient(transparent,rgba(0,0,0,.78));color:#fff}
+.tpick .tpg b{font-size:1.1rem;letter-spacing:-.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tpick .tpg small{opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hx{animation:g-rise .5s var(--ease) both}
+@media (min-width:900px){.tpick{width:280px}}

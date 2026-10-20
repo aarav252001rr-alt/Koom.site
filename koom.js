@@ -493,7 +493,7 @@ const LEGAL = {
     ['Who we are', `<p>${esc(APP.name)} (“we”, “us”) is an independent music app${creatorName() ? ' created and operated by ' + esc(creatorName()) : ''}. You can reach us through ${ctc()}.</p>`],
     ['What is stored on your device', `<p>${esc(APP.name)} saves the following in your browser (local storage, IndexedDB and cache storage). None of it is sent to us.</p><div class="tw"><table class="dtab"><tr><th>Information</th><th>Why</th></tr><tr><td>Display name</td><td>To greet you on Home</td></tr><tr><td>Settings and music taste</td><td>To remember your preferences</td></tr><tr><td>Liked songs, playlists, saved albums and artists</td><td>Your library</td></tr><tr><td>Recently played (last 50) and play counts</td><td>Home, history and Insights</td></tr><tr><td>Queue and playback position</td><td>To continue where you left off</td></tr><tr><td>Last 8 searches</td><td>Search suggestions</td></tr><tr><td>Song details and translated lyrics</td><td>To show your lists quickly and avoid repeat requests</td></tr><tr><td>App files and cover images (service worker cache)</td><td>Faster loading and offline start</td></tr></table></div>`],
     ['Information sent when you use the app', `<p><b>Music data service.</b> When you browse, search or open an artist, album, playlist or lyrics, your device sends the search text or the ID of the item, together with the technical details every web request carries (IP address, browser type and the time of the request). A shared app key identifies the app, not you.</p><p><b>Streaming service.</b> When you play or download a song, your device sends the YouTube link of that song and the chosen quality. The service fetches the audio and relays it to you.</p><p>These services run on cloud infrastructure and keep ordinary server logs (such as IP address, time and requested address) for security and troubleshooting. We do not use them to build profiles or to track you across sites. Your name, library, playlists and history are never sent to them.</p>`],
-    ['Third parties', `<ul class="ticks"><li><b>YouTube and Google.</b> Audio and metadata originate from YouTube. Cover art is loaded straight from Google image hosts, so they can see your IP address and browser details.</li><li><b>Google Fonts</b> supplies the app typeface and receives your IP address when fonts load.</li><li><b>Google Translate</b> receives the text of a song’s lyrics only if you choose English lyrics. Hinglish conversion happens entirely on your device.</li><li><b>Voice search</b> uses your browser’s speech recognition, which may send your audio to the browser maker’s servers (for example Google in Chrome). It runs only after you tap the microphone.</li></ul><p>These companies handle data under their own privacy policies.</p>`],
+    ['Third parties', `<ul class="ticks"><li><b>YouTube and Google.</b> Audio and metadata originate from YouTube. Cover art is loaded straight from Google image hosts, so they can see your IP address and browser details.</li><li><b>LRCLIB and Lyrics.ovh</b> (lyrics sources, selectable in Settings → Lyrics). They receive the song title, artist, album and length when lyrics are looked up, plus your IP address.</li><li><b>Google Fonts</b> supplies the app typeface and receives your IP address when fonts load.</li><li><b>Google Translate</b> receives the text of a song’s lyrics only if you choose English lyrics. Hinglish conversion happens entirely on your device.</li><li><b>Voice search</b> uses your browser’s speech recognition, which may send your audio to the browser maker’s servers (for example Google in Chrome). It runs only after you tap the microphone.</li></ul><p>These companies handle data under their own privacy policies.</p>`],
     ['Cookies and similar technologies', `<p>${esc(APP.name)} does not set cookies. It uses local storage, IndexedDB, cache storage and a service worker to work quickly and to start offline. Clearing your browser’s site data removes all of it.</p>`],
     ['Analytics and advertising', `<p>None. We do not use analytics, advertising or tracking SDKs.</p>`],
     ['How long data is kept', `<p>On-device data stays until you remove it. Server logs are kept by the hosting provider for short, standard periods and then deleted.</p>`],
@@ -814,7 +814,7 @@ const sel = (k, opts, cur) => `<select class="sel" data-kq="${k}" aria-label="${
 const FMTS = [['', 'Auto'], ['m4a', 'M4A (AAC)'], ['webm', 'WebM (Opus)']];
 const kPlay = () => `<div class="sg"><h2>Streaming</h2><div class="sc">${sr('Streaming quality', 'Higher quality uses more data', sel('sq', KQP, curQ()))}${sr('Audio format', 'M4A plays on every device, WebM (Opus) is smaller', sel('sf', FMTS, S.sf || ''))}${sr('Pre-load next song', 'The next song starts instantly', sw('pf'))}${sr('Skip unplayable songs', 'Moves on if a song can’t be played', sw('skip'))}${sr('Music taste', 'Used for Made For You on Home', '<button class="btn2" data-act="taste">Edit</button>')}</div></div>
 <div class="sg"><h2>Downloads</h2><div class="sc">${sr('Download quality', 'Used by every Download button', sel('dq', DQP, S.dq || 'ask'))}${sr('Audio format', 'Same setting as streaming', sel('sf', FMTS, S.sf || ''))}</div></div>`;
-let deferredInstall = null, INST_SHOWN = 0; const DAY = 864e5;
+let deferredInstall = null, INST_SHOWN = 0, INST_TRIES = 0; const DAY = 864e5;
 const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true, isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream;
 async function pwaInstalled() { if (LS.get('koom.pwa') === 'in') return true; try { if (navigator.getInstalledRelatedApps) { const r = await navigator.getInstalledRelatedApps(); if (r && r.length) return true; } } catch (e) { } return false; }
 function openInstalled() { window.open(location.href.split('#')[0], '_blank'); setTimeout(() => toast('If it didn’t open, tap the ' + APP.name + ' icon on your home screen'), 1400); }
@@ -824,11 +824,10 @@ async function installFlow() {
   if (await pwaInstalled()) return openInstalled();
   toast(location.protocol === 'http:' && !/^(localhost|127\.)/.test(location.hostname) ? 'Installing needs an https address' : isIOS() ? 'Tap Share, then “Add to Home Screen”' : 'Open the browser menu and choose “Install app”');
 }
-function closeInst(snooze) { const el = $('#kinst'); if (!el) return; if (snooze) LS.set('koom.inst.snooze', Date.now() + snooze); el.classList.add('out'); setTimeout(() => el.remove(), 320); }
+function closeInst() { const el = $('#kinst'); if (!el) return;   /* shown on every visit: no snooze */ el.classList.add('out'); setTimeout(() => el.remove(), 320); }
 async function maybeInstallPrompt() {
   if (INST_SHOWN || $('#kinst') || isStandalone() || !window.isSecureContext) return;
-  if (!/^#?\/?$/.test(location.hash) || Date.now() < (+LS.get('koom.inst.snooze') || 0) || (+LS.get('koom.visits') || 1) < 2) return;
-  if ($('#np').classList.contains('open') || $('#wel')) return;
+  if ($('#np').classList.contains('open') || $('#wel') || $('dialog[open]')) { if (INST_TRIES++ < 12) setTimeout(maybeInstallPrompt, 5000); return; }
   const inst = await pwaInstalled(), ios = isIOS(); if (!deferredInstall && !ios && !inst) return;
   INST_SHOWN = 1; const mode = inst ? 'open' : deferredInstall ? 'install' : 'ios';
   const T = { install: ['Install ' + APP.name, 'Full-screen, faster, and one tap from your home screen.', 'Install'], open: [APP.name + ' is installed', 'Open it from your home screen for the full-screen experience.', 'Open app'], ios: ['Add ' + APP.name + ' to your Home Screen', 'Tap Share, then “Add to Home Screen”.', 'Got it'] }[mode];
@@ -845,7 +844,6 @@ async function maybeInstallPrompt() {
     closeInst(mode === 'ios' ? 14 * DAY : 1 * DAY); if (mode === 'install') installFlow(); else if (mode === 'open') openInstalled();
   };
 }
-addEventListener('hashchange', () => { if (!/^#?\/?$/.test(location.hash)) closeInst(0); });
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; setTimeout(maybeInstallPrompt, 3500); });
 addEventListener('appinstalled', () => { deferredInstall = null; LS.set('koom.pwa', 'in'); closeInst(0); toast(APP.name + ' installed'); });
 const _kp = window.kProfile; window.kProfile = () => _kp() + kPlay();
@@ -989,7 +987,7 @@ V.addEventListener('click', e => { if (e.target.closest('[data-st="lyDual"]')) s
   ['https://i.ytimg.com', 'https://lh3.googleusercontent.com'].forEach(h => { const l = document.createElement('link'); l.rel = 'preconnect'; l.href = h; document.head.append(l); });
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || /^(localhost|127\.)/.test(location.hostname))) navigator.serviceWorker.register('sw.js').catch(() => { });
   const hideSplash = async () => { const sp = $('#splash'); await wsleep(Math.max(0, 1100 - (performance.now() - t0))); if (sp) { sp.classList.add('out'); await wsleep(480); sp.remove(); } };
-  setTimeout(maybeInstallPrompt, 6500);
+  setTimeout(maybeInstallPrompt, 4000);
   if (NAME()) { refreshAv(); route(); await hideSplash(); }
   else { await hideSplash(); await welcome(); refreshAv(); route(); }
 })();

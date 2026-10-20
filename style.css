@@ -501,7 +501,7 @@ body:not(:has(#bar.on)) .kinst{bottom:calc(84px + env(safe-area-inset-bottom))}
 .kit b{display:block;font-size:1rem}.kit span{display:block;font-size:.82rem;color:var(--mute);margin-top:2px;line-height:1.35}
 .kx{position:absolute;top:6px;right:8px;width:30px;height:30px;font-size:1.4rem;line-height:1;color:var(--mute);border-radius:50%}.kx:hover{background:var(--fill)}
 .kia{grid-column:2/4;display:flex;gap:10px;justify-content:flex-end;margin-top:8px}.kia .pill{padding:9px 18px}.kia .btn2{padding:9px 16px}
-.kbar{position:absolute;left:0;bottom:0;height:3px;width:100%;background:linear-gradient(90deg,#ff2d55,#ff6b81);transform-origin:left;animation:kcount 14s linear forwards}
+.kbar{position:absolute;left:0;bottom:0;height:3px;width:100%;background:linear-gradient(90deg,#ff2d55,#ff6b81);transform-origin:left;animation:kcount 30s linear forwards}
 .kinst.hold .kbar{animation-play-state:paused}@keyframes kcount{to{transform:scaleX(0)}}
 @media(min-width:861px){.kinst{left:auto;right:24px;bottom:104px;width:390px}body:not(:has(#bar.on)) .kinst{bottom:30px}}
 
