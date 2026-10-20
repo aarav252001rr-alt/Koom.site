@@ -1,6 +1,6 @@
 /* KOOM — lyrics sources (browser-only): KOOM service, LRCLIB, Lyrics.ovh. Setting: Auto / Best / one source. Sync nudge per song. */
 (function () {
-  const NAMES = { koom: 'YouTube Transcript', lrclib: 'LRCLIB', ovh: 'Lyrics.ovh' }, MODES = [['auto', 'Auto (recommended)'], ['best', 'Best match'], ['koom', 'KOOM'], ['lrclib', 'LRCLIB'], ['ovh', 'Lyrics.ovh (plain text)']];
+  const NAMES = { koom: 'YouTube Transcript', lrclib: 'LRCLIB', ovh: 'Lyrics.ovh' }, MODES = [['auto', 'Auto (recommended)'], ['best', 'Best match'], ['koom', 'YouTube Transcript'], ['lrclib', 'LRCLIB'], ['ovh', 'Lyrics.ovh (plain text)']];
   const CACHE = new Map(), isSynced = s => /\[\d+:\d+(?:\.\d+)?\]/.test(s || '');
   const stamp = ms => { const v = ms / 1000; return `[${String(Math.floor(v / 60)).padStart(2, '0')}:${(v % 60).toFixed(2).padStart(5, '0')}]`; };
   const clean = s => String(s || '').replace(/\s*[\(\[][^)\]]*(feat|ft\.|official|video|audio|lyric|remaster|from\s|version|live)[^)\]]*[\)\]]/ig, '').replace(/\s+-\s+(remaster|official|from|live).*$/i, '').replace(/\s+/g, ' ').trim();
