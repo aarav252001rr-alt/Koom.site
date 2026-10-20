@@ -310,14 +310,46 @@ async function showArtist(id) {
   view = ''; const my = RT; setV(skel('list'), my);
   try {
     const [a, b] = await Promise.allSettled([mApi('/artist/' + enc(id)), mApi('/artist/' + enc(id) + '/albums')]); if (a.status !== 'fulfilled') throw a.reason;
-    const d = a.value, info = d.artist || d, th = thumbOf(info, 800) || thumbOf(d, 800), ss = extractSections(d, 'Popular Songs');
+    const d = a.value, info = d.artist || d, th = thumbOf(info, 800) || thumbOf(d, 800), ss = extractSections(d, 'Popular Songs'), name = nm(info.name || info.title) || 'Artist';
     if (b.status === 'fulfilled') extractSections(b.value, 'Albums').forEach(s => { const k = ss.findIndex(x => x.title === s.title); if (k < 0) ss.push(s); else if (s.items.length > ss[k].items.length) ss[k] = s; });
-    const body = renderSections(ss), bio = info.description || info.bio || '';
-    setV(`<div class="ahero"><div class="abg" style="background-image:url('${esc(th)}')"></div><div class="at"><span class="kick">ARTIST</span><h1>${esc(nm(info.name || info.title) || 'Artist')}</h1>${info.subscribers ? `<p class="meta">${esc(info.subscribers)}</p>` : ''}${bio ? `<p class="lead clamp">${esc(bio)}</p>` : ''}${FIRST ? `<div class="btns"><button class="pill pri" data-act="pplay" data-pid="${FIRST.id}">${ic('play', 18)}Play</button><button class="pill" data-act="pshuf" data-pid="${FIRST.id}">${ic('shuf', 18)}Shuffle</button>${libBtn('artists', id, nm(info.name || info.title) || 'Artist', 'Artist', th)}</div>` : `<div class="btns">${libBtn('artists', id, nm(info.name || info.title) || 'Artist', 'Artist', th)}</div>`}</div></div>` + (body || '<div class="msg">No content for this artist yet.</div>'), my);
+    const bio = info.description || info.bio || '';
+    const draw = () => {
+      const body = renderSections(ss);
+      return setV(`<div class="ahero"><div class="abg" style="background-image:url('${esc(th)}')"></div><div class="at"><span class="kick">ARTIST</span><h1>${esc(name)}</h1>${info.subscribers ? `<p class="meta">${esc(info.subscribers)}</p>` : ''}${bio ? `<p class="lead clamp">${esc(bio)}</p>` : ''}${FIRST ? `<div class="btns"><button class="pill pri" data-act="pplay" data-pid="${FIRST.id}">${ic('play', 18)}Play</button><button class="pill" data-act="pshuf" data-pid="${FIRST.id}">${ic('shuf', 18)}Shuffle</button>${libBtn('artists', id, name, 'Artist', th)}</div>` : `<div class="btns">${libBtn('artists', id, name, 'Artist', th)}</div>`}</div></div>` + (body || '<div class="msg">No content for this artist yet.</div>'), my);
+    };
+    draw();
+    /* background top-up: every song of the artist (paged search) + artist-related playlists */
+    const low = name.toLowerCase(), isSong = x => x.kind === 'song' || x.kind === 'video';
+    const [sg, pl] = await Promise.allSettled([
+      (async () => { const out = []; for (let p = 1; p <= 6; p++) { const r = await mRaw('/search', { q: name, filter: 'songs', limit: 40, page: p }); const n = flat(r.data || []).filter(x => isSong(x) && (x.artists.some(y => y.n.toLowerCase() === low) || x.artist.toLowerCase().includes(low))); if (!n.length && p > 1) break; out.push(...n); if (r.has_more === false) break; } return out; })(),
+      mApi('/search', { q: name, filter: 'playlists', limit: 20 })
+    ]); if (my !== RT) return;
+    let changed = false;
+    if (sg.status === 'fulfilled' && sg.value.length) {
+      let si = ss.findIndex(x => x.items.filter(isSong).length >= x.items.length / 2 && x.items.some(isSong));
+      if (si < 0) { ss.unshift({ title: 'Songs', items: [] }); si = 0; }
+      const have = new Set(ss[si].items.map(x => x.id)), add = sg.value.filter(x => { if (have.has(x.id)) return false; have.add(x.id); return true; });
+      if (add.length) { ss[si].items.push(...add); changed = true; }
+    }
+    if (pl.status === 'fulfilled') {
+      const seen = new Set(ss.flatMap(s => s.items.filter(x => x.kind === 'playlist').map(x => x.id))), it = flat(pl.value).filter(x => x.kind === 'playlist' && !seen.has(x.id));
+      if (it.length) { ss.push({ title: 'Playlists featuring ' + name, items: it }); changed = true; }
+    }
+    if (changed && my === RT) { const y = window.scrollY; draw(); window.scrollTo(0, y); }
   } catch (e) { setV(errBox(e), my); }
 }
-async function showAlbum(id) { view = ''; const my = RT; setV(skel('list'), my); try { trackPage(await mApi('/album/' + enc(id)), 'ALBUM', my, 'album', id); } catch (e) { setV(errBox(e), my); } }
-async function showRemotePl(id) { view = ''; const my = RT; setV(skel('list'), my); try { trackPage(await mApi('/playlist/' + enc(id)), 'PLAYLIST', my, 'playlist', id); } catch (e) { setV(errBox(e), my); } }
+/* albums / playlists: fetch further pages (if the service pages them) and re-render with the full list */
+async function morePages(path, d0, kick, my, key, rid) {
+  const arrOf = d => { const i = d[key] || d; return d.tracks || d.songs || d.items || i.tracks || i.songs || []; }, idOf = x => x.videoId || x.video_id || x.id;
+  const all = arrOf(d0 || {}).slice(), seen = new Set(all.map(idOf)), n0 = all.length; if (n0 < 10) return;
+  for (let p = 2; p <= 15; p++) {
+    let d; try { d = await mApi(path, { page: p, limit: 100 }); } catch (e) { break; } if (my !== RT) return;
+    const a = arrOf(d || {}).filter(x => { const k = idOf(x); return k && !seen.has(k) && seen.add(k); }); if (!a.length) break; all.push(...a);
+  }
+  if (all.length > n0 && my === RT) { const y = window.scrollY; trackPage(Object.assign({}, d0, { tracks: all }), kick, my, key, rid); window.scrollTo(0, y); }
+}
+async function showAlbum(id) { view = ''; const my = RT; setV(skel('list'), my); try { const d = await mApi('/album/' + enc(id)); trackPage(d, 'ALBUM', my, 'album', id); morePages('/album/' + enc(id), d, 'ALBUM', my, 'album', id); } catch (e) { setV(errBox(e), my); } }
+async function showRemotePl(id) { view = ''; const my = RT; setV(skel('list'), my); try { const d = await mApi('/playlist/' + enc(id)); trackPage(d, 'PLAYLIST', my, 'playlist', id); morePages('/playlist/' + enc(id), d, 'PLAYLIST', my, 'playlist', id); } catch (e) { setV(errBox(e), my); } }
 
 /* search: suggestions (debounced), tabs, infinite scroll + load more */
 const SQ = { q: '', f: 'all', items: [], page: 1, done: 1, busy: 0, io: null }, TABS = [['all', 'All'], ['songs', 'Songs'], ['videos', 'Videos'], ['artists', 'Artists'], ['albums', 'Albums'], ['playlists', 'Playlists']];
@@ -345,9 +377,9 @@ async function runSearch(q, keep) {
 async function moreSearch(first) {
   if (SQ.busy || SQ.done || !SQ.q || view !== 'search') return; SQ.busy = 1; const q = SQ.q, f = SQ.f;
   try {
-    const d = await mRaw('/search', { q, filter: f === 'all' ? '' : f, limit: 30, page: SQ.page }); if (q !== SQ.q || f !== SQ.f) return;
+    const d = await mRaw('/search', { q, filter: f === 'all' ? '' : f, limit: 40, page: SQ.page }); if (q !== SQ.q || f !== SQ.f) return;
     const have = new Set(SQ.items.map(x => x.kind + x.id)), n = flat(d.data || []).filter(x => !have.has(x.kind + x.id));
-    SQ.items.push(...n); SQ.page++; SQ.done = !d.has_more || !n.length; drawResults();
+    SQ.items.push(...n); SQ.page++; SQ.done = !n.length || (d.has_more === false && n.length < 5); drawResults();
   } catch (e) { if (view === 'search' && !SQ.items.length) $('#sr').innerHTML = errBox(e); }
   SQ.busy = 0;
 }
@@ -625,8 +657,8 @@ function voiceSearch(btn) {
 }
 function netBar(first) {
   let b = $('#koff');
-  if (!navigator.onLine) { if (!b) { b = document.createElement('div'); b.id = 'koff'; b.setAttribute('role', 'status'); b.textContent = 'You’re offline — showing your downloads.'; document.body.append(b); } }
-  else if (b) { b.remove(); if (!first) toast('Back online'); }
+  if (!navigator.onLine) { if (!b) { b = document.createElement('div'); b.id = 'koff'; b.setAttribute('role', 'status'); b.textContent = 'You’re offline — showing your downloads.'; document.body.append(b); } clearTimeout(netBar.t); netBar.t = setTimeout(() => { const x = $('#koff'); if (x) { x.classList.add('gone'); setTimeout(() => x.remove(), 400); } }, 4000); }
+  else if (b) { clearTimeout(netBar.t); b.remove(); if (!first) toast('Back online'); }
 }
 addEventListener('offline', () => netBar()); addEventListener('online', () => netBar());
 const wcredit = () => { const n = creatorName(), s = socIcons(30); return n || s ? `<div class="wcredit"><span>Made with ❤️${by()}</span><div class="socs">${s}</div></div>` : ''; };
@@ -909,8 +941,8 @@ function artistLinks(t) {
   const a = L0.map(x => `<a class="alink" ${x.id ? `data-aid="${esc(x.id)}"` : `data-an="${esc(x.n)}"`}>${esc(x.n)}</a>`).join(', ');
   return a + (t.c.album ? ` — <a class="alink" ${t.c.albumId ? `data-alb="${esc(t.c.albumId)}"` : ''}>${esc(t.c.album)}</a>` : '');
 }
-function gotoArtistByName(n) {
-  SQ.q = n; SQ.f = 'artists'; SQ.items = []; SQ.page = 1; SQ.done = 0;
+function gotoArtistByName(n, f) {
+  SQ.q = n; SQ.f = f || 'artists'; SQ.items = []; SQ.page = 1; SQ.done = 0;
   if (location.hash === '#/search') { showSearch(); runSearch(n, 1); } else { location.hash = '#/search'; setTimeout(() => $('#sq') && runSearch(n, 1), 140); }
 }
 $('#na').addEventListener('click', e => {

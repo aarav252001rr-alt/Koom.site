@@ -97,7 +97,7 @@ body{line-height:1.45;text-rendering:optimizeLegibility}
 .pill.pri:hover{filter:brightness(1.08)}
 .pill:disabled,.btn2:disabled{opacity:.45;cursor:not-allowed;pointer-events:none}
 .btn2,.stabs button,.sjump button,.lymodes button,.qmode .btn2,.toc a,.qlinks a,.chip{background:var(--g-1);border:1px solid var(--g-edge-soft);box-shadow:var(--g-hi);transition:background .2s,transform .15s var(--ease),color .2s}
-.btn2{min-height:38px;border-radius:var(--r-pill);padding:0 16px}
+.btn2{min-height:38px;border-radius:var(--r-pill);padding:0 16px;display:inline-flex;align-items:center;justify-content:center;line-height:1;white-space:nowrap}
 .btn2:hover,.stabs button:hover,.sjump button:hover,.toc a:hover,.qlinks a:hover{background:var(--fill2)}
 .btn2:active,.stabs button:active,.qlinks a:active{transform:scale(.97)}
 .stabs button.on,.lymodes button.on{background:var(--ink);color:var(--bg);border-color:transparent}
@@ -259,3 +259,17 @@ dialog::backdrop{background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(6px);ba
 .dltool{display:flex;gap:10px;align-items:center;margin:6px 0 14px;flex-wrap:wrap}
 .dltool .sbox{flex:1 1 220px;max-width:420px;margin:0;height:44px}
 .tr[hidden]{display:none}
+
+/* 19. alignment fixes: search ✕ / mic centred on the field, pills centre their text */
+.sw2{height:var(--h-field)}
+.sw2 .sbox{height:100%}
+.sw2 .mic,.sw2 .sclr{top:0;bottom:0;margin-block:auto;transform:none;display:inline-flex;align-items:center;justify-content:center;line-height:0;padding:0}
+.sw2 .mic{inset-inline-end:8px;right:8px;width:38px;height:38px}
+.sw2 .sclr{inset-inline-end:50px;right:50px;width:30px;height:30px}
+.sw2 .sclr:active{transform:scale(.92)}
+.sw2 .mic svg,.sw2 .sclr svg{display:block}
+.pill{display:inline-flex;align-items:center;justify-content:center;line-height:1}
+.sug{top:calc(100% + 6px);margin-top:0}
+#koff{transition:opacity .35s,transform .35s}#koff.gone{opacity:0;transform:translateY(-12px) }
+#dd .alink{color:var(--acc);cursor:pointer;text-decoration:none;font-weight:600}#dd .alink:hover{text-decoration:underline}
+.sw2{margin-top:18px}.sw2 .sbox{margin-top:0}

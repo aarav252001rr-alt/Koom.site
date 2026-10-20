@@ -17,8 +17,18 @@
       ['Playing from', m ? 'Offline copy (downloaded ' + new Date(m.date).toLocaleDateString() + ')' : cur && A.src ? 'Streaming · ' + setting : ''],
       [_('iSrc'), 'YouTube Music'], ['Video ID', t.c.videoId || '']
     ].filter(r => r[1]);
-    $('#dd').innerHTML = rows.map(r => `<dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd>`).join(''); $('#dlg').showModal();
+    const aL = (t.c.artists && t.c.artists.length ? t.c.artists : t.c.artist ? [{ n: t.c.artist, id: t.c.artistId || '' }] : []);
+    const link = r => r[0] === _('iArtist') && aL.length ? aL.map(x => `<a class="alink" ${x.id ? `data-aid="${esc(x.id)}"` : `data-an="${esc(x.n)}"`}>${esc(x.n)}</a>`).join(', ')
+      : r[0] === _('iAlbum') ? `<a class="alink" ${t.c.albumId ? `data-alb="${esc(t.c.albumId)}"` : `data-albn="${esc(r[1])}"`}>${esc(r[1])}</a>` : esc(r[1]);
+    $('#dd').innerHTML = rows.map(r => `<dt>${esc(r[0])}</dt><dd>${link(r)}</dd>`).join(''); $('#dlg').showModal();
   };
+  $('#dd').addEventListener('click', e => {
+    const a = e.target.closest('.alink'); if (!a) return; $('#dlg').close();
+    if (typeof closeNP === 'function') try { closeNP(); } catch (x) { }
+    if (a.dataset.aid) location.hash = '#/artist/' + enc(a.dataset.aid);
+    else if (a.dataset.alb) location.hash = '#/album/' + enc(a.dataset.alb);
+    else if (a.dataset.an || a.dataset.albn) gotoArtistByName(a.dataset.an || a.dataset.albn, a.dataset.albn ? 'albums' : 'artists');
+  });
   window.qualMenu = a => Q[qi] && qualityMenu(Q[qi], a);
 
   /* ---------- Equalizer + fade (Web Audio) ---------- */
